@@ -1,25 +1,64 @@
 package cs451;
 
+import cs451.links.PerfectLink;
+import cs451.packet.Packet;
+import cs451.packet.PacketImpl;
+
+import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.Socket;
+import java.util.Scanner;
+import java.math.BigInteger;
+
+/**
+ * To execute:
+ *
+ * ./run.sh --id 1 --hosts ../example/hosts --output ../example/output/output.txt ../example/configs/perfect-links.config
+ */
 
 public class Main {
+
+    // Static variables to be able to use them in static methods.
+    private static FileWriter writer;
+    private static PerfectLink pLink;
+
+    private static void printDeliver(final Packet packet) {
+        final int senderId = packet.getSenderId();
+        final int seqNum = packet.getPacketId();
+        try {
+            writer.write("d " + senderId + " " + seqNum + "\n");
+        } catch (IOException e) {
+            System.out.println("Delivering: Error writing to output file.\n");
+            System.exit(1);
+        }
+    }
 
     private static void handleSignal() {
         //immediately stop network packet processing
         System.out.println("Immediately stopping network packet processing.");
 
-        //write/flush output file if necessary
+        //close all connections
+        Main.pLink.close();
+
+        // write/flush output file
         System.out.println("Writing output.");
+
+        try {
+            Main.writer.flush();
+            Main.writer.close();
+        } catch (IOException e) {
+            System.out.println("Error closing output file");
+            System.exit(1);
+        }
+
+        System.exit(0);
     }
 
     private static void initSignalHandlers() {
         Runtime.getRuntime().addShutdownHook(new Thread() {
             @Override
             public void run() {
-                handleSignal();
+                Main.handleSignal();
             }
         });
     }
@@ -28,9 +67,8 @@ public class Main {
         Parser parser = new Parser(args);
         parser.parse();
 
-        initSignalHandlers();
+        Main.initSignalHandlers();
 
-        // example
         long pid = ProcessHandle.current().pid();
         System.out.println("My PID: " + pid + "\n");
         System.out.println("From a new terminal type `kill -SIGINT " + pid + "` or `kill -SIGTERM " + pid + "` to stop processing packets\n");
@@ -56,7 +94,71 @@ public class Main {
 
         System.out.println("Doing some initialization\n");
 
+        // Read config file
+        int numMessages = 0;
+        int receiverId = 0;
+        try (Scanner scanner = new Scanner(new File(parser.config()))) {
+            scanner.useDelimiter(" |\\n");
+            numMessages = scanner.nextInt();
+            System.out.println("Number of messages to broadcast: " + numMessages);
+            receiverId = scanner.nextInt();
+            System.out.println("Receiver Id: " + receiverId + "\n");
+        } catch (IOException e) {
+            System.out.println("Error reading config file.");
+            System.exit(1);
+        }
+
+        // Get port of the process
+        int myPort = -1;
+        for (Host host: parser.hosts()) {
+            if (host.getId() == parser.myId()) {
+                myPort = host.getPort();
+                break;
+            }
+        }
+
+        // If the process is not in the hosts file, exit
+        if (myPort == -1) {
+            System.out.println("Could not find my port.");
+            System.exit(1);
+        }
+
+        try {
+            writer = new FileWriter(parser.output());
+        } catch (IOException e) {
+            System.out.println("Error opening output file.");
+            System.exit(1);
+        }
+
+        System.out.print("PerfectLink is ready to send messages.\n");
         System.out.println("Broadcasting and delivering messages...\n");
+
+        // Set up PerfectLink
+        Main.pLink = new PerfectLink(myPort, parser.hosts(), Main::printDeliver);
+
+        // If the process is not the receiver, broadcast messages
+        if (parser.myId() != receiverId) {
+
+            // Broadcast messages
+            for (int i = 1; i <= numMessages; i++) {
+                try {
+                    Main.writer.write("b " + i + "\n");
+                } catch (IOException e) {
+                    System.out.println("Broadcasting: Error writing to output file.\n");
+                    System.exit(1);
+                }
+                Main.pLink.send(
+                        new PacketImpl(
+                                BigInteger.valueOf(i).toByteArray(),
+                                i,
+                                false,
+                                parser.myId(),
+                                receiverId)
+                );
+            }
+
+            System.out.println("Broadcast done, waiting for the delivery.\n");
+        }
 
         // After a process finishes broadcasting,
         // it waits forever for the delivery of messages.
