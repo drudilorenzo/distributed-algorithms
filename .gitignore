@@ -1,1 +1,9 @@
 .idea/
+
+# Vim swap files
+*.swp
+
+# Output files
+example/output/
+
+target/
