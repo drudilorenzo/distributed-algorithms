@@ -4,6 +4,8 @@
 # source code of the project. You must specify the local absolute path.
 
 docker run \
--v /home/drudao/Desktop/EPFL/Year_I/DistributedAlgorithms/Project/distributed-algorithms/java:/root/java \
--w /root/java \
--it da_image /bin/bash 
+--rm \
+--name da_container \
+-v /home/drudao/Desktop/EPFL/Year_I/DistributedAlgorithms/Project/distributed-algorithms/:/root/da \
+-w /root/da/project \
+-it da_image /bin/bash
