@@ -1,30 +1,30 @@
 package cs451;
 
 import cs451.links.PerfectLink;
-import cs451.packet.Packet;
-import cs451.packet.PacketImpl;
+import cs451.message.Message;
+import cs451.message.PayloadMessageImpl;
 
 import java.io.File;
+import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.Scanner;
-import java.math.BigInteger;
 
 /**
  * To execute:
- *
- * ./run.sh --id 1 --hosts ../example/hosts --output ../example/output/output.txt ../example/configs/perfect-links.config
+ * ./run.sh --id 1 --hosts ../example/hosts --output ../example/output.txt ../example/configs/perfect-links.config
  */
 
 public class Main {
 
-    // Static variables to be able to use them in static methods.
-    private static FileWriter writer;
-    private static PerfectLink pLink;
+    // To be able to use them they should be static.
+    private static long timeInit;         // time of the first send
+    private static BufferedWriter writer; // buffered writer to write to the output file
+    private static PerfectLink pLink;     // perfect link abstraction
 
-    private static void printDeliver(final Packet packet) {
-        final int senderId = packet.getSenderId();
-        final int seqNum = packet.getPacketId();
+    private static void printDeliver(final Message message) {
+        final int senderId = message.getSenderId();
+        final int seqNum = message.getMessageId();
         try {
             writer.write("d " + senderId + " " + seqNum + "\n");
         } catch (IOException e) {
@@ -34,6 +34,8 @@ public class Main {
     }
 
     private static void handleSignal() {
+        System.out.println("Stop: " + (System.currentTimeMillis() - Main.timeInit) + " ms\n");
+
         //immediately stop network packet processing
         System.out.println("Immediately stopping network packet processing.");
 
@@ -48,10 +50,7 @@ public class Main {
             Main.writer.close();
         } catch (IOException e) {
             System.out.println("Error closing output file");
-            System.exit(1);
         }
-
-        System.exit(0);
     }
 
     private static void initSignalHandlers() {
@@ -63,6 +62,7 @@ public class Main {
         });
     }
 
+    @SuppressWarnings({"InfiniteLoopStatement", "BusyWait"})
     public static void main(String[] args) throws InterruptedException {
         Parser parser = new Parser(args);
         parser.parse();
@@ -124,7 +124,8 @@ public class Main {
         }
 
         try {
-            writer = new FileWriter(parser.output());
+            var fWriter = new FileWriter(parser.output());
+            writer = new BufferedWriter(fWriter);
         } catch (IOException e) {
             System.out.println("Error opening output file.");
             System.exit(1);
@@ -134,11 +135,13 @@ public class Main {
         System.out.println("Broadcasting and delivering messages...\n");
 
         // Set up PerfectLink
-        Main.pLink = new PerfectLink(myPort, parser.hosts(), Main::printDeliver);
+        Main.pLink = new PerfectLink(parser.myId(), myPort, parser.hosts(), Main::printDeliver);
 
+        // Start the timer
+        Main.timeInit = System.currentTimeMillis();
+        
         // If the process is not the receiver, broadcast messages
         if (parser.myId() != receiverId) {
-
             // Broadcast messages
             for (int i = 1; i <= numMessages; i++) {
                 try {
@@ -147,16 +150,22 @@ public class Main {
                     System.out.println("Broadcasting: Error writing to output file.\n");
                     System.exit(1);
                 }
+
+                // Create payload (int to byte array)
+                var payload = new byte[4];
+                payload[0] = (byte)((i >> 24) & 0xff);
+                payload[1] = (byte)((i >> 16) & 0xff);
+                payload[2] = (byte)((i >> 8) & 0xff);
+                payload[3] = (byte)(i & 0xff);
+
                 Main.pLink.send(
-                        new PacketImpl(
-                                BigInteger.valueOf(i).toByteArray(),
+                        new PayloadMessageImpl(
+                                payload,
                                 i,
-                                false,
                                 parser.myId(),
                                 receiverId)
                 );
             }
-
             System.out.println("Broadcast done, waiting for the delivery.\n");
         }
 

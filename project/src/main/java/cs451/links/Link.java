@@ -1,21 +1,19 @@
 package cs451.links;
 
-import cs451.packet.Packet;
+import cs451.message.Message;
 
 /**
  * Interface for the abstraction of a link (used to represent the network components of the
  * distributed system).
- *
- * Every pair of processes is connected by a bidirectional link.
  */
 interface Link {
 
     /**
      * Send a packet.
      *
-     * @param packet: the packet to send.
+     * @param message: the packet to send.
      */
-    void send(Packet packet);
+    void send(Message message);
 
     /**
      * Close the link.

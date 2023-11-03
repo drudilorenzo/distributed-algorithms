@@ -1,98 +1,62 @@
 package cs451.packet;
 
+import java.util.List;
+import java.util.ArrayList;
 import java.nio.ByteBuffer;
+import cs451.message.Message;
 
 /**
- * Implementation of {@Packet}.
+ * Implementation of {@link Packet}.
  */
 public class PacketImpl implements Packet {
 
-    private static final int BYTE_SIZE = 17; // size in byte of the packet header
+    private static final int INT_SIZE = 4;         // size in byte of an int
+    private static final int MAX_NUM_MESSAGES = 8; // maximum number of messages in a packet
 
-    // Using a byte array to be able to send every type of data
-    private final int id;         // id of the packet
-    private boolean isAck;        // true if the packet is an ack packet, false otherwise
-    private int senderId;         // id of the sender
-    private int receiverId;       // id of the receiver
-    private byte[] byteRappr;     // byte representation of the packet
-    private final byte[] payload; // payload of the packet (using a byte array to be able to send every type of data)
+    private int length;
+    private final List<Message> messages;
 
-    /**
-     * Constructor of {@PacketImpl}.
-     *
-     * @param payload:    the payload of the packet.
-     * @param id:         the id of the packet.
-     * @param isAck:      true if the packet is an ack packet, false otherwise.
-     * @param senderId:   the id of the sender.
-     * @param receiverId: the id of the receiver.
-     */
-    public PacketImpl(final byte[] payload, final int id, final boolean isAck, final int senderId, final int receiverId) {
-        this.id = id;
-        this.isAck = isAck;
-        this.payload = payload;
-        this.senderId = senderId;
-        this.receiverId = receiverId;
-
-        this.serializePacket();
-    }
-
-    private void serializePacket() {
-        // The total size of the packet is the size of the header + the size of the payload
-        final ByteBuffer bb = ByteBuffer.allocate(PacketImpl.BYTE_SIZE + this.payload.length);
-        bb.putInt(this.payload.length);
-        bb.put(this.payload);
-        bb.put(this.isAck() ? (byte) 1 : (byte) 0);
-        bb.putInt(this.id);
-        bb.putInt(this.senderId);
-        bb.putInt(this.receiverId);
-        this.byteRappr = bb.array();
+    public PacketImpl() {
+        this.length = INT_SIZE; // 4 bytes for the number of messages
+        this.messages = new ArrayList<>();
     }
 
     @Override
-    public int getPacketId() {
-        return this.id;
+    public void addMessage(final Message message) {
+        // Need to consider the size of the header (4 bytes for the length of the message)
+        this.length += PacketImpl.INT_SIZE + message.getLength();
+        this.messages.add(message);
+    }
+
+    @Override
+    public boolean canContainMessage(final int messageLength) {
+        return (this.length + PacketImpl.INT_SIZE + messageLength <= Packet.MAX_PAYLOAD_SIZE)
+                && (this.messages.size() + 1 <= PacketImpl.MAX_NUM_MESSAGES);
     }
 
     @Override
     public int getLength() {
-        return Packet.MAX_PAYLOAD_SIZE;
+        return this.length;
     }
 
     @Override
-    public boolean isAck() {
-        return this.isAck;
+    public List<Message> getMessages() {
+        return new ArrayList<>(this.messages); // shallow copy
     }
 
     @Override
-    public int getSenderId() {
-        return this.senderId;
+    public byte[] serialize() {
+        final ByteBuffer bb = ByteBuffer.allocate(this.length);
+        bb.putInt(this.messages.size());
+        for (final var message : this.messages) {
+            bb.putInt(message.getLength());
+            bb.put(message.getMessageInBytes());
+        }
+        return bb.array();
     }
 
     @Override
-    public int getReceiverId() {
-        return this.receiverId;
-    }
-
-    @Override
-    public byte[] getPacketInBytes() {
-        return this.byteRappr;
-    }
-
-    @Override
-    public byte[] getPayload() {
-        return this.payload;
-    }
-
-    @Override
-    public Packet toAck() {
-        return new PacketImpl(this.byteRappr, this.id, true, this.receiverId, this.senderId);
-    }
-
-    /*
-     * To compare two packets, we compare their id, isAck, senderId and receiverId.
-     */
-    @Override
-    public boolean equals(Object obj) {
+    public boolean equals(final Object obj) {
         if (this == obj) {
             return true;
         }
@@ -102,18 +66,12 @@ public class PacketImpl implements Packet {
         if (this.getClass() != obj.getClass()) {
             return false;
         }
-        return (this.getPacketId() == ((PacketImpl) obj).getPacketId())
-                && (this.isAck() == ((PacketImpl) obj).isAck())
-                && (this.getSenderId() == ((PacketImpl) obj).getSenderId())
-                && (this.getReceiverId() == ((PacketImpl) obj).getReceiverId());
+        return this.messages.equals(((PacketImpl) obj).messages);
     }
 
     @Override
     public int hashCode() {
-        return Integer.toString(this.getPacketId()).hashCode()
-                + Boolean.toString(this.isAck()).hashCode()
-                + Integer.toString(this.getSenderId()).hashCode()
-                + Integer.toString(this.getReceiverId()).hashCode();
+        return this.messages.hashCode();
     }
 
 }

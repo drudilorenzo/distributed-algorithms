@@ -4,6 +4,12 @@
 *.swp
 
 # Output files
-example/output/
+example/output*
 
 target/
+
+/tools/autostress.py
+/tools/multiple_perfect.sh
+/tools/validate_perfect.js
+/tools/README.md
+/tools/log/

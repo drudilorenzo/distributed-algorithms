@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Build the java project
+../project/build.sh
+
 # The first parameter is the name of the local directory that contains the
 # source code of the project. You must specify the local absolute path.
 
