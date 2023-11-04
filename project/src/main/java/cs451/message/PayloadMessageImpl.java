@@ -8,10 +8,10 @@ public class PayloadMessageImpl implements Message {
     public static final int HEADER_SIZE = 9; // size in byte of the message header without the payload
 
     private final int id;               // id of the message
-    private final byte[] msgToByte;     // byte representation of the packet
     private final byte senderId;        // id of the sender (max value: 128)
-    private final byte receiverId;      // id of the receiver (max value: 128)
     private final byte[] payload;       // payload of the packet (using a byte array to be able to send every type of data)
+    private final byte receiverId;      // id of the receiver (max value: 128)
+    private final byte[] msgToByte;     // byte representation of the packet
 
     /**
      * Constructor of {@link PayloadMessageImpl}.
@@ -28,20 +28,17 @@ public class PayloadMessageImpl implements Message {
         this.receiverId = (byte)((receiverId - 1) & 0xFF);
         this.msgToByte = new byte[HEADER_SIZE + payload.length];
         // 4 bytes for the id of the message
-        this.msgToByte[0] = (byte)((this.id >> 24) & 0xff);
-        this.msgToByte[1] = (byte)((this.id >> 16) & 0xff);
-        this.msgToByte[2] = (byte)((this.id >> 8) & 0xff);
+        this.msgToByte[0] = (byte)((this.id >> 24) & 0xFF);
+        this.msgToByte[1] = (byte)((this.id >> 16) & 0xFF);
+        this.msgToByte[2] = (byte)((this.id >> 8) & 0xFF);
         this.msgToByte[3] = (byte)(this.id & 0xff);
-        // 1 byte for the senderId and the isAck boolean.
-        // Indeed, the maximum number of processes is 128
-        // so we can use 7 bits to represent the senderId.
+        // 1 byte for the senderId
         this.msgToByte[4] = (byte)((senderId - 1) & 0xFF);
-        this.msgToByte[4] |= (byte)(0);
         // 4 bytes for the length of the payload
-        this.msgToByte[5] = (byte)((payload.length >> 24) & 0xff);
-        this.msgToByte[6] = (byte)((payload.length >> 16) & 0xff);
-        this.msgToByte[7] = (byte)((payload.length >> 8) & 0xff);
-        this.msgToByte[8] = (byte)(payload.length & 0xff);
+        this.msgToByte[5] = (byte)((payload.length >> 24) & 0xFF);
+        this.msgToByte[6] = (byte)((payload.length >> 16) & 0xFF);
+        this.msgToByte[7] = (byte)((payload.length >> 8) & 0xFF);
+        this.msgToByte[8] = (byte)(payload.length & 0xFF);
         // n bytes for the payload
         System.arraycopy(payload, 0, this.msgToByte, PayloadMessageImpl.HEADER_SIZE, payload.length);
     }
@@ -51,17 +48,6 @@ public class PayloadMessageImpl implements Message {
         return this.id;
     }
 
-    @Override
-    public int getLength() {
-        return PayloadMessageImpl.HEADER_SIZE + this.payload.length;
-    }
-
-    @Override
-    public boolean isAck() {
-        return false;
-    }
-
-    @Override
     public int getSenderId() {
         return this.senderId + 1;
     }
@@ -72,8 +58,8 @@ public class PayloadMessageImpl implements Message {
     }
 
     @Override
-    public byte[] serialize() {
-        return this.msgToByte;
+    public int getLength() {
+        return PayloadMessageImpl.HEADER_SIZE + this.payload.length;
     }
 
     @Override
@@ -82,8 +68,8 @@ public class PayloadMessageImpl implements Message {
     }
 
     @Override
-    public Message toAck() {
-        return new AckMessageImpl(this.id, this.getReceiverId(), this.getSenderId());
+    public byte[] serialize() {
+        return this.msgToByte;
     }
 
     /*

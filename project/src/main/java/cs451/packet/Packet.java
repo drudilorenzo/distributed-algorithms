@@ -9,16 +9,35 @@ import java.util.List;
  */
 public interface Packet {
 
-    int INT_SIZE = 4;         // size in byte of an int
-    int HEADER_SIZE = 5;      // size in byte of the header of a message (number of messages + receiverId)
+    int INT_SIZE = 4; // size in byte of an int
 
     /**
-     * Maximum size of a packet in byte.
-     * Every packet, in the current implementation, can contain at most 8 messages.
-     * Every message, in the current implementation, it is at most 14 bytes long.
-     * To this we need to add the 4 bytes for the number of messages and 4 bytes for the length of each message.
+     * Get the id of the packet.
+     *
+     * @return The id of the packet.
      */
-    int MAX_PAYLOAD_SIZE = 141;
+    int getId();
+
+    /**
+     * Get the id of the sender.
+     *
+     * @return The id of the sender.
+     */
+    int getSenderId();
+
+    /**
+     * Get the id of the receiver.
+     *
+     * @return The id of the receiver.
+     */
+    int getReceiverId();
+
+    /**
+     * Return true if the packet is an ack packet, false otherwise.
+     *
+     * @return True if the packet is an ack packet, false otherwise.
+     */
+    boolean isAck();
 
     /**
      * Add a message to the packet.
@@ -49,15 +68,23 @@ public interface Packet {
     List<Message> getMessages();
 
     /**
+     * Convert the packet to an ack packet.
+     *
+     * @return The ack packet.
+     */
+    Packet toAck();
+
+    /**
      * Get the byte representation of the packet.
-     * The serialization is done as follows:
-     * - the first 4 bytes represent the number of messages in the packet
-     * - the next 4 bytes represent the length of the first message
-     * - the next n bytes represent the first message
-     * ...
      *
      * @return The byte representation of the packet.
      */
     byte[] serialize();
+
+    @Override
+    boolean equals(Object obj);
+
+    @Override
+    int hashCode();
 
 }

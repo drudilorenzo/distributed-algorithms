@@ -15,23 +15,25 @@ public class PacketUtils {
      * @return The deserialized packet.
      */
     public static Packet deserialize(final byte[] data) {
-        final int numMessages = (0xff & data[0]) << 24 | (0xff & data[1]) << 16  | (0xff & data[2]) << 8 | (0xff & data[3]);
-        System.out.println("NumMessages: " + numMessages);
-        final int receiverId = data[4] + 1;
-        System.out.println("ReceiverId: " + receiverId);
-        int curPos = Packet.HEADER_SIZE;
-        final Packet packet = new PacketImpl();
+        final int id = (0xFF & data[0]) << 24 | (0xFF & data[1]) << 16  | (0xFF & data[2]) << 8 | (0xFF & data[3]);
+        final int receiverId = (data[4] & 0x7F) + 1;
+        final boolean isAck = (data[4] & 0x80) != 0;
+        if (isAck) {
+            final int senderId = data[5] + 1;
+            return new AckPacketImpl(id, senderId, receiverId);
+        }
+        final int numMessages = (0xFF & data[5]) << 24 | (0xFF & data[6]) << 16  | (0xFF & data[7]) << 8 | (0xFF & data[8]);
+        int curPos = PayloadPacketImpl.PAYLOAD_HEADER_SIZE;
+        final Packet packet = new PayloadPacketImpl(id);
         Message message;
         int messageLength;
         byte[] messageByte;
         for (int i = 0; i < numMessages; i++) {
-            messageLength = (0xff & data[curPos]) << 24 | (0xff & data[curPos + 1]) << 16  | (0xff & data[curPos + 2]) << 8 | (0xff & data[curPos + 3]);
-            System.out.println("MessageLength: " + messageLength);
+            messageLength = (0xFF & data[curPos]) << 24 | (0xFF & data[curPos + 1]) << 16  | (0xFF & data[curPos + 2]) << 8 | (0xFF & data[curPos + 3]);
             curPos += Packet.INT_SIZE;
             messageByte = new byte[messageLength];
             System.arraycopy(data, curPos, messageByte, 0, messageLength);
             message = MessageUtils.deserialize(messageByte, receiverId);
-            System.out.println("MessageId: " + message.getId());
             curPos += messageLength;
             packet.addMessage(message);
         }

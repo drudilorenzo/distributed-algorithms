@@ -13,20 +13,6 @@ public interface Message {
     int getId();
 
     /**
-     * Get the length of the payload.
-     *
-     * @return The length of the payload.
-     */
-    int getLength();
-
-    /**
-     * Check if a packet is an ack message.
-     *
-     * @return True if it is a packet, false otherwise.
-     */
-    boolean isAck();
-
-    /**
      * Get the id of the sender.
      *
      * @return The byte of the sender (since the maximum number of processes is 128 use a byte).
@@ -41,6 +27,20 @@ public interface Message {
     int getReceiverId();
 
     /**
+     * Get the length of the payload.
+     *
+     * @return The length of the payload.
+     */
+    int getLength();
+
+    /**
+     * Get the payload of the message.
+     *
+     * @return A byte array containing the payload.
+     */
+    byte[] getPayload();
+
+    /**
      * Get the byte representation of the packet.
      * It is done as follows:
      * - the first 4 bytes represent the id of the message.
@@ -53,19 +53,5 @@ public interface Message {
      * @return The byte representation of the packet.
      */
     byte[] serialize();
-
-    /**
-     * Get the payload of the message.
-     *
-     * @return A byte array containing the payload.
-     */
-    byte[] getPayload();
-
-    /**
-     * Get the ack message of the current one.
-     *
-     * @return The ack message.
-     */
-    Message toAck();
 
 }

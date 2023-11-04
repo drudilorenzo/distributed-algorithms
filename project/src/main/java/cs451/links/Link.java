@@ -9,9 +9,9 @@ import cs451.message.Message;
 interface Link {
 
     /**
-     * Send a packet.
+     * Send a meessage.
      *
-     * @param message: the packet to send.
+     * @param message: the message to send.
      */
     void send(Message message);
 

@@ -1,14 +1,14 @@
 package cs451;
 
-import cs451.links.PerfectLink;
 import cs451.message.Message;
+import cs451.links.PerfectLink;
 import cs451.message.PayloadMessageImpl;
 
 import java.io.File;
-import java.io.BufferedWriter;
+import java.util.Scanner;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.Scanner;
+import java.io.BufferedWriter;
 
 /**
  * To execute:
@@ -19,12 +19,10 @@ public class Main {
 
     // To be able to use them they should be static.
     private static long timeInit;         // time of the first send
-    private static BufferedWriter writer; // buffered writer to write to the output file
     private static PerfectLink pLink;     // perfect link abstraction
+    private static BufferedWriter writer; // buffered writer to write to the output file
 
-    private static void printDeliver(final Message message) {
-        final int senderId = message.getSenderId();
-        final int seqNum = message.getId();
+    private static void printDeliver(final int seqNum, final int senderId) {
         try {
             writer.write("d " + senderId + " " + seqNum + "\n");
         } catch (IOException e) {
