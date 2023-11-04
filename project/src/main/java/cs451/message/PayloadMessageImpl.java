@@ -5,7 +5,7 @@ package cs451.message;
  */
 public class PayloadMessageImpl implements Message {
 
-    public static final int HEADER_SIZE = 10; // size in byte of the message header without the payload
+    public static final int HEADER_SIZE = 9; // size in byte of the message header without the payload
 
     private final int id;               // id of the message
     private final byte[] msgToByte;     // byte representation of the packet
@@ -32,24 +32,22 @@ public class PayloadMessageImpl implements Message {
         this.msgToByte[1] = (byte)((this.id >> 16) & 0xff);
         this.msgToByte[2] = (byte)((this.id >> 8) & 0xff);
         this.msgToByte[3] = (byte)(this.id & 0xff);
-        // Need to decrease the senderId by 1 to be able to represent it on 7 bits.
-        // This permits to use the 8th bit to represent the isAck boolean.
-        // 1 byte for the senderId and the isAck boolean
+        // 1 byte for the senderId and the isAck boolean.
+        // Indeed, the maximum number of processes is 128
+        // so we can use 7 bits to represent the senderId.
         this.msgToByte[4] = (byte)((senderId - 1) & 0xFF);
         this.msgToByte[4] |= (byte)(0);
-        // 1 byte for the receiverId
-        this.msgToByte[5] = (byte)((receiverId - 1) & 0xFF);
         // 4 bytes for the length of the payload
-        this.msgToByte[6] = (byte)((payload.length >> 24) & 0xff);
-        this.msgToByte[7] = (byte)((payload.length >> 16) & 0xff);
-        this.msgToByte[8] = (byte)((payload.length >> 8) & 0xff);
-        this.msgToByte[9] = (byte)(payload.length & 0xff);
+        this.msgToByte[5] = (byte)((payload.length >> 24) & 0xff);
+        this.msgToByte[6] = (byte)((payload.length >> 16) & 0xff);
+        this.msgToByte[7] = (byte)((payload.length >> 8) & 0xff);
+        this.msgToByte[8] = (byte)(payload.length & 0xff);
         // n bytes for the payload
         System.arraycopy(payload, 0, this.msgToByte, PayloadMessageImpl.HEADER_SIZE, payload.length);
     }
 
     @Override
-    public int getMessageId() {
+    public int getId() {
         return this.id;
     }
 
@@ -74,7 +72,7 @@ public class PayloadMessageImpl implements Message {
     }
 
     @Override
-    public byte[] getMessageInBytes() {
+    public byte[] serialize() {
         return this.msgToByte;
     }
 
@@ -102,7 +100,7 @@ public class PayloadMessageImpl implements Message {
         if (this.getClass() != obj.getClass()) {
             return false;
         }
-        return (this.getMessageId() == ((Message) obj).getMessageId())
+        return (this.getId() == ((Message) obj).getId())
                 && (this.isAck() == ((Message) obj).isAck())
                 && (this.getSenderId() == ((Message) obj).getSenderId())
                 && (this.getReceiverId() == ((Message) obj).getReceiverId());
@@ -110,7 +108,7 @@ public class PayloadMessageImpl implements Message {
 
     @Override
     public int hashCode() {
-        return Integer.toString(this.getMessageId()).hashCode()
+        return Integer.toString(this.getId()).hashCode()
                 + Boolean.toString(this.isAck()).hashCode()
                 + Integer.toString(this.getSenderId()).hashCode()
                 + Integer.toString(this.getReceiverId()).hashCode();

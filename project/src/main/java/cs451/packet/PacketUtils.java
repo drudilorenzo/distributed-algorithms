@@ -3,8 +3,6 @@ package cs451.packet;
 import cs451.message.Message;
 import cs451.message.MessageUtils;
 
-import java.nio.ByteBuffer;
-
 /**
  * Utility class for {@link Packet}.
  */
@@ -17,17 +15,24 @@ public class PacketUtils {
      * @return The deserialized packet.
      */
     public static Packet deserialize(final byte[] data) {
-        final ByteBuffer bb = ByteBuffer.wrap(data);
+        final int numMessages = (0xff & data[0]) << 24 | (0xff & data[1]) << 16  | (0xff & data[2]) << 8 | (0xff & data[3]);
+        System.out.println("NumMessages: " + numMessages);
+        final int receiverId = data[4] + 1;
+        System.out.println("ReceiverId: " + receiverId);
+        int curPos = Packet.HEADER_SIZE;
         final Packet packet = new PacketImpl();
-        final int numMessages = bb.getInt();
         Message message;
         int messageLength;
         byte[] messageByte;
         for (int i = 0; i < numMessages; i++) {
-            messageLength = bb.getInt();
+            messageLength = (0xff & data[curPos]) << 24 | (0xff & data[curPos + 1]) << 16  | (0xff & data[curPos + 2]) << 8 | (0xff & data[curPos + 3]);
+            System.out.println("MessageLength: " + messageLength);
+            curPos += Packet.INT_SIZE;
             messageByte = new byte[messageLength];
-            bb.get(messageByte);
-            message = MessageUtils.deserialize(messageByte);
+            System.arraycopy(data, curPos, messageByte, 0, messageLength);
+            message = MessageUtils.deserialize(messageByte, receiverId);
+            System.out.println("MessageId: " + message.getId());
+            curPos += messageLength;
             packet.addMessage(message);
         }
         return packet;

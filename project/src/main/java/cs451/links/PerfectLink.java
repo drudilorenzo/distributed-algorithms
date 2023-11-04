@@ -22,7 +22,7 @@ import java.util.function.Consumer;
 public class PerfectLink implements Link {
 
     private final StubbornLink sLink;
-    private final Set<Message> delivered;
+    private final Set<Integer>[] delivered;
     private final Consumer<Message> deliverer;
 
     /**
@@ -34,7 +34,11 @@ public class PerfectLink implements Link {
      * @param deliverer: consumer of packets called every time a packet is received.
      */
     public PerfectLink(final int myId, final int port, final List<Host> hosts, final Consumer<Message> deliverer) {
-        this.delivered = new HashSet<>();
+        // Use a set of delivered messages for each sender host.
+        this.delivered = new HashSet[hosts.size()];
+        for (var i = 0; i < hosts.size(); i++) {
+            this.delivered[i] = new HashSet<>();
+        }
         this.deliverer = deliverer;
         var hostsArray = new Host[hosts.size()];
         hosts.toArray(hostsArray);
@@ -55,8 +59,10 @@ public class PerfectLink implements Link {
      * Deliver a packet if it hasn't been delivered yet.
      */
     private void deliver(final Message message) {
-        if (!this.delivered.contains(message)) {
-            this.delivered.add(message);
+        final var senderId = message.getSenderId() - 1;
+        final var messageId = message.getId();
+        if (!this.delivered[senderId].contains(messageId)) {
+            this.delivered[senderId].add(messageId);
             this.deliverer.accept(message);
         }
     }

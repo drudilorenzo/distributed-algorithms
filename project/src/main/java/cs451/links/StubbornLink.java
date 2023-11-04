@@ -20,23 +20,26 @@ import java.util.function.Consumer;
  */
 public class StubbornLink implements Link {
 
-    private static final int NUM_THREADS = 3;
+    private static final int NUM_THREADS = 1;
     private static final long RETRANSMISSION_TIME = 100;
     private final static int SOCKET_TERMINATION_TIME = 50;
 
+    private final int myId;
     private final FairLossLink fLink;
+    private final ExecutorService executor;
     private final Consumer<Message> deliverer;
-    private final ScheduledExecutorService executor;
     private final Set<Message>[] messagesSent; // array of messages sent divided by receiver (waiting for ack)
 
     /**
      * Constructor of {@link StubbornLink}.
      *
+     * @param myId: the id of the current process.
      * @param port:  the port to listen to.
      * @param hosts: the list of hosts.
      * @param deliverer: consumer of packets called every time a packet is received.
      */
     public StubbornLink(final int myId, final int port, final Host[] hosts, final Consumer<Message> deliverer) {
+        this.myId = myId;
         this.deliverer = deliverer;
         this.messagesSent = new Set[hosts.length];
         for (var i = 0; i < hosts.length; i++) {
@@ -46,19 +49,8 @@ public class StubbornLink implements Link {
             this.messagesSent[i] = ConcurrentHashMap.newKeySet();
         }
         this.fLink = new FairLossLink(port, hosts, this::deliver);
-        this.executor = new ScheduledThreadPoolExecutor(StubbornLink.NUM_THREADS);
-        // creating one task for each receiver to retransmit the packets that were not delivered
-        for (var i = 0; i < hosts.length; i++) {
-            final var receiverId = i + 1;
-            if (receiverId != myId) {
-                this.executor.scheduleWithFixedDelay(
-                        () -> this.retransmitPacketsOfReceiver(receiverId),
-                        StubbornLink.RETRANSMISSION_TIME,
-                        StubbornLink.RETRANSMISSION_TIME,
-                        TimeUnit.MILLISECONDS
-                );
-            }
-        }
+        this.executor = Executors.newFixedThreadPool(StubbornLink.NUM_THREADS);
+        this.executor.execute(this::retransmitPackets);
     }
 
     @Override
@@ -85,7 +77,7 @@ public class StubbornLink implements Link {
             // need to create a dummy payload message to remove it from the set
             var m = new PayloadMessageImpl(
                     message.getPayload(),
-                    message.getMessageId(),
+                    message.getId(),
                     message.getReceiverId(),
                     message.getSenderId()
             );
@@ -96,13 +88,27 @@ public class StubbornLink implements Link {
         }
     }
 
-    private void retransmitPacketsOfReceiver(final int receiverId) {
-        final var messages = this.messagesSent[receiverId - 1];
-        // early return if there are no messages to retransmit
-        if (messages.isEmpty()) {
-            return;
+    private void retransmitPackets() {
+        // Use a timer for each receiver.
+        final var timers = new long[this.messagesSent.length];
+        Arrays.fill(timers, System.currentTimeMillis());
+        while (!Thread.currentThread().isInterrupted()) {
+            for (var i = 0; i < this.messagesSent.length; i++) {
+                if (this.myId == i + 1) {
+                    continue;
+                }
+                final var now = System.currentTimeMillis();
+                // Retransmit the messages sent to the receiver i if the timer is expired.
+                if (now - timers[i] >= StubbornLink.RETRANSMISSION_TIME) {
+                    for (var m : this.messagesSent[i]) {
+                        this.fLink.send(m);
+                    }               
+                    // final var messages = this.messagesSent[i];
+                    // messages.iterator().forEachRemaining(this.fLink::send);
+                    timers[i] = now;
+                }
+            }
         }
-        messages.iterator().forEachRemaining(this.fLink::send);
     }
     
 }

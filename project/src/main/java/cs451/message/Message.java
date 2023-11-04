@@ -1,18 +1,16 @@
 package cs451.message;
 
-import java.io.Serializable;
-
 /**
  * Interface for UDP Message.
  */
-public interface Message extends Serializable {
+public interface Message {
 
     /**
      * Get the message id.
      *
      * @return the id of the message.
      */
-    int getMessageId();
+    int getId();
 
     /**
      * Get the length of the payload.
@@ -43,11 +41,18 @@ public interface Message extends Serializable {
     int getReceiverId();
 
     /**
-     * Get the message data as a byte array.
-     *
-     * @return A byte array containing the message data.
+     * Get the byte representation of the packet.
+     * It is done as follows:
+     * - the first 4 bytes represent the id of the message.
+     * - the 5th byte represent the senderId and the isAck boolean.
+     * - the next 4 bytes represent the length of the payload.
+     * - the next n bytes represent the payload.
+     * The receiverId is not considered in the serialization of the message
+     * since it is present in the header of the packet.
+     * 
+     * @return The byte representation of the packet.
      */
-    byte[] getMessageInBytes();
+    byte[] serialize();
 
     /**
      * Get the payload of the message.

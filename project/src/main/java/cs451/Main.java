@@ -24,7 +24,7 @@ public class Main {
 
     private static void printDeliver(final Message message) {
         final int senderId = message.getSenderId();
-        final int seqNum = message.getMessageId();
+        final int seqNum = message.getId();
         try {
             writer.write("d " + senderId + " " + seqNum + "\n");
         } catch (IOException e) {

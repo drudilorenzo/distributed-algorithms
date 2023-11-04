@@ -5,7 +5,7 @@ package cs451.message;
  */
 public class AckMessageImpl implements Message {
 
-    private static final short MESSAGE_SIZE = 6;
+    private static final short MESSAGE_SIZE = 5;
 
     private final int id;
     private final byte senderId;
@@ -21,8 +21,9 @@ public class AckMessageImpl implements Message {
      */
     public AckMessageImpl(final int id, final int senderId, final int receiverId) {
         this.id = id;
-        // Need to decrease the senderId by 1 to be able to represent it on 7 bits.
         this.senderId = (byte)((senderId - 1) & 0xFF);
+        // The receiver id is not considered in the serialization of the message
+        // since it is present in the header of the packet.
         this.receiverId = (byte)((receiverId - 1) & 0xFF);
         // Byte representation of the message (2 bytes).
         // No usage of a function to avoid the overhead.
@@ -35,11 +36,12 @@ public class AckMessageImpl implements Message {
         // Use the 8th bit to represent the isAck boolean.
         msgToByte[4] = this.senderId;
         msgToByte[4] |= (byte)(1 << 7);
-        msgToByte[5] = this.receiverId;
+
+        System.out.println("AckMessageImpl: " + this.msgToByte.length);
     }
 
     @Override
-    public int getMessageId() {
+    public int getId() {
         return this.id;
     }
 
@@ -64,13 +66,14 @@ public class AckMessageImpl implements Message {
     }
 
     @Override
-    public byte[] getMessageInBytes() {
+    public byte[] serialize() {
         return this.msgToByte;
     }
 
     @Override
     public byte[] getPayload() {
-        return new byte[0];
+        // No payload for ACK messages.
+        throw  new UnsupportedOperationException("No payload for ACK messages.");
     }
 
     @Override
@@ -92,7 +95,7 @@ public class AckMessageImpl implements Message {
         if (this.getClass() != obj.getClass()) {
             return false;
         }
-        return (this.getMessageId() == ((Message) obj).getMessageId())
+        return (this.getId() == ((Message) obj).getId())
                 && (this.isAck() == ((Message) obj).isAck())
                 && (this.getSenderId() == ((Message) obj).getSenderId())
                 && (this.getReceiverId() == ((Message) obj).getReceiverId());
@@ -100,7 +103,7 @@ public class AckMessageImpl implements Message {
 
     @Override
     public int hashCode() {
-        return Integer.toString(this.getMessageId()).hashCode()
+        return Integer.toString(this.getId()).hashCode()
                 + Boolean.toString(this.isAck()).hashCode()
                 + Integer.toString(this.getSenderId()).hashCode()
                 + Integer.toString(this.getReceiverId()).hashCode();

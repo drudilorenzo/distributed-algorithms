@@ -9,13 +9,16 @@ import java.util.List;
  */
 public interface Packet {
 
+    int INT_SIZE = 4;         // size in byte of an int
+    int HEADER_SIZE = 5;      // size in byte of the header of a message (number of messages + receiverId)
+
     /**
      * Maximum size of a packet in byte.
      * Every packet, in the current implementation, can contain at most 8 messages.
      * Every message, in the current implementation, it is at most 14 bytes long.
      * To this we need to add the 4 bytes for the number of messages and 4 bytes for the length of each message.
      */
-    int MAX_PAYLOAD_SIZE = 148;
+    int MAX_PAYLOAD_SIZE = 141;
 
     /**
      * Add a message to the packet.
