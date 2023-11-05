@@ -85,7 +85,6 @@ public class StubbornLink implements Link {
             this.messageSendBuffer[message.getReceiverId() - 1].put(message);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return;
         }
     }
 

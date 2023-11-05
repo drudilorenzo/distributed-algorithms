@@ -79,7 +79,6 @@ public class FairLossLink implements Link {
             this.sendBuffer.put(packet);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return;
         }
     }
 
