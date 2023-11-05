@@ -49,6 +49,8 @@ public class FairLossLink implements Link {
             this.socket = new DatagramSocket(port);
         } catch (SocketException e) {
             System.err.println("FairLossLink: Could not open socket on port " + port);
+            Thread.currentThread().interrupt();
+            System.exit(1);
         }
         this.sendCallback = sendCallback;
         this.deliverCallback = deliverCallback;
@@ -76,9 +78,8 @@ public class FairLossLink implements Link {
         try {
             this.sendBuffer.put(packet);
         } catch (InterruptedException e) {
-            System.err.println("FairLossLink: Could not send packet");
             Thread.currentThread().interrupt();
-            System.exit(1);
+            return;
         }
     }
 
@@ -105,22 +106,15 @@ public class FairLossLink implements Link {
             try {
                 this.socket.receive(datagram);
             } catch (IOException e) {
-                // filter out the exception that is thrown when the socket is closed.
-                // they are thrown when the close method is called.
-                if (e instanceof SocketException && e.getMessage().equals("Socket closed")) {
-                    return;
-                }
-                System.err.println("FairLossLink: Could not deliver packet ");
                 Thread.currentThread().interrupt();
-                System.exit(1);
+                return;
             }
             packet = PacketUtils.deserialize(datagram.getData());
-            this.deliverer.accept(packet);
+            this.deliverCallback.accept(packet);
         }
     }
 
     private void sendBuffer() {
-        int j = 0;
         Packet packet;
         int receiverId;
         Host receiver;
@@ -137,23 +131,11 @@ public class FairLossLink implements Link {
                         receiver.getPort()
                 );
                 this.socket.send(datagram);
-                this.senderCallback.accept(packet);
-            } catch (IOException e) {
-                // filter out the exception that is thrown when the socket is closed
-                // they are thrown when the close method is called
-                if (e instanceof SocketException && e.getMessage().equals("Socket closed")) {
-                    return;
-                }
-                System.err.println("FairLossLink: send problem.");
+                this.sendCallback.accept(packet);
+            } catch (IOException | InterruptedException e) {
                 Thread.currentThread().interrupt();
-                System.exit(1);
-            } catch (InterruptedException e) {
                 return;
-            } catch (Exception e) {
-                System.err.println("FairLossLink: unknown problem.");
-                Thread.currentThread().interrupt();
-                System.exit(1);
-            }
+            } 
         }
     }
 

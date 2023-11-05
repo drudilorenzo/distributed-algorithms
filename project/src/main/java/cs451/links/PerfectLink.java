@@ -6,7 +6,7 @@ import cs451.message.Message;
 import java.util.Set;
 import java.util.List;
 import java.util.HashSet;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 /**
  * Perfect link (or reliable link) abstraction. It is the strongest variant of the link abstractions, and it has
@@ -31,7 +31,7 @@ public class PerfectLink implements Link {
      * @param myId:      the id of the host.
      * @param port:      the port to listen to.
      * @param hosts:     the list of hosts.
-     * @param deliverer: consumer of packets called every time a packet is received.
+     * @param deliverCallback: consumer of packets called every time a packet is received.
      */
     public PerfectLink(final int myId, final int port,
         final List<Host> hosts, final BiConsumer<Integer, Integer> deliverCallback) {
@@ -64,7 +64,7 @@ public class PerfectLink implements Link {
         final var messageId = message.getId();
         if (!this.delivered[senderId - 1].contains(messageId)) {
             this.delivered[senderId - 1].add(messageId);
-            this.deliverer.accept(messageId, senderId);
+            this.deliverCallback.accept(messageId, senderId);
         }
     }
 

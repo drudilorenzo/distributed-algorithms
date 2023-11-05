@@ -18,11 +18,11 @@ public class PacketUtils {
         final int id = (0xFF & data[0]) << 24 | (0xFF & data[1]) << 16  | (0xFF & data[2]) << 8 | (0xFF & data[3]);
         final int receiverId = (data[4] & 0x7F) + 1;
         final boolean isAck = (data[4] & 0x80) != 0;
+        final int senderId = data[5] + 1;
         if (isAck) {
-            final int senderId = data[5] + 1;
             return new AckPacketImpl(id, senderId, receiverId);
         }
-        final int numMessages = (0xFF & data[5]) << 24 | (0xFF & data[6]) << 16  | (0xFF & data[7]) << 8 | (0xFF & data[8]);
+        final int numMessages = (0xFF & data[6]) << 24 | (0xFF & data[7]) << 16  | (0xFF & data[8]) << 8 | (0xFF & data[9]);
         int curPos = PayloadPacketImpl.PAYLOAD_HEADER_SIZE;
         final Packet packet = new PayloadPacketImpl(id);
         Message message;
@@ -33,7 +33,7 @@ public class PacketUtils {
             curPos += Packet.INT_SIZE;
             messageByte = new byte[messageLength];
             System.arraycopy(data, curPos, messageByte, 0, messageLength);
-            message = MessageUtils.deserialize(messageByte, receiverId);
+            message = MessageUtils.deserialize(messageByte, senderId, receiverId);
             curPos += messageLength;
             packet.addMessage(message);
         }

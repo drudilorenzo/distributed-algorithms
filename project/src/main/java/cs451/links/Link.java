@@ -9,7 +9,7 @@ import cs451.message.Message;
 interface Link {
 
     /**
-     * Send a meessage.
+     * Send a message.
      *
      * @param message: the message to send.
      */

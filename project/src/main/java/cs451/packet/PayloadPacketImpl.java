@@ -13,15 +13,16 @@ public class PayloadPacketImpl implements Packet {
      * Size in byte of the header of a payload packet.
      * - 4 bytes for the id of the packet.
      * - 1 byte for the receiverId + isAck.
+     * - 1 byte for the senderId.
      * - 4 bytes for the number of messages.
      */
-    public static final int PAYLOAD_HEADER_SIZE = 9;
+    public static final int PAYLOAD_HEADER_SIZE = 10;
     /**
      * Maximum size of a packet in byte.
      * Header + payload.
-     * Every packet, in the current implementation, can contain at most 8 messages (with maximum size 13 bytes).
+     * Every packet, in the current implementation, can contain at most 8 messages (with maximum size 12 bytes).
      */
-    public static final int MAX_PAYLOAD_SIZE = 145;
+    public static final int MAX_PAYLOAD_SIZE = 138;
     private static final int MAX_NUM_MESSAGES = 8; // maximum number of messages in a packet
 
     private int length;
@@ -32,8 +33,9 @@ public class PayloadPacketImpl implements Packet {
 
     public PayloadPacketImpl(final int id) {
         this.id = id;
-        this.receiverId = -1;
+        // The sender id and the receiver id are not set until the first message is added.
         this.senderId = -1;
+        this.receiverId = -1;
         this.messages = new ArrayList<>();
         this.length = PayloadPacketImpl.PAYLOAD_HEADER_SIZE;
     }
@@ -46,8 +48,6 @@ public class PayloadPacketImpl implements Packet {
     public PayloadPacketImpl(final int id, final int senderId) {
         this(id);
         this.senderId = senderId;
-        // -1 means that the receiverId is not set yet (it will be set when the first message is added)
-        this.receiverId = -1;
     }
 
     /**
@@ -59,19 +59,6 @@ public class PayloadPacketImpl implements Packet {
     public PayloadPacketImpl(final int id, final int senderId, final int receiverId) {
         this(id, senderId);
         this.receiverId = receiverId;
-    }
-
-    @Override
-    public void addMessage(final Message message) {
-        if (this.receiverId == -1) {
-            this.receiverId = message.getReceiverId();
-        }
-        if (this.senderId == -1) {
-            this.senderId = message.getSenderId();
-        }
-        // 4 bytes for the length of the message.
-        this.length += Packet.INT_SIZE + message.getLength();
-        this.messages.add(message);
     }
 
     @Override
@@ -102,19 +89,41 @@ public class PayloadPacketImpl implements Packet {
         return false;
     }
 
-    public int getLength() {
-        return this.length;
+    @Override
+    public void addMessage(final Message message) {
+        if (this.receiverId == -1) {
+            this.receiverId = message.getReceiverId();
+        }
+        if (this.senderId == -1) {
+            this.senderId = message.getSenderId();
+        }
+        // 4 bytes for the length of the message.
+        this.length += Packet.INT_SIZE + message.getLength();
+        this.messages.add(message);
     }
 
     @Override
     public boolean canContainMessage(final int messageLength) {
         return (this.length + Packet.INT_SIZE + messageLength <= PayloadPacketImpl.MAX_PAYLOAD_SIZE)
-                && (this.messages.size() + 1 <= PayloadPacketImpl.MAX_NUM_MESSAGES);
+            && (this.messages.size() + 1 <= PayloadPacketImpl.MAX_NUM_MESSAGES);
     }
+
+    public int getLength() {
+        return this.length;
+    }
+
 
     @Override
     public List<Message> getMessages() {
         return new ArrayList<>(this.messages); // shallow copy
+    }
+
+    @Override
+    public Packet toAck() {
+        if (this.messages.isEmpty()) {
+            throw new UnsupportedOperationException("Cannot convert an empty packet to an ack packet.");
+        }
+        return new AckPacketImpl(this.id, this.receiverId, this.senderId);
     }
 
     @Override
@@ -126,35 +135,24 @@ public class PayloadPacketImpl implements Packet {
         buffer[3] = (byte)(this.id & 0xFF);
         buffer[4] = (byte)((this.receiverId - 1) & 0xFF);
         buffer[4] |= (byte)(0);
+        buffer[5] = (byte)((this.senderId - 1) & 0xFF);
         final var numMessages = this.messages.size();
-        buffer[5] = (byte)((numMessages >> 24) & 0xFF);
-        buffer[6] = (byte)((numMessages >> 16) & 0xFF);
-        buffer[7] = (byte)((numMessages >> 8) & 0xFF);
-        buffer[8] = (byte)(numMessages & 0xFF);
+        buffer[6] = (byte)((numMessages >> 24) & 0xFF);
+        buffer[7] = (byte)((numMessages >> 16) & 0xFF);
+        buffer[8] = (byte)((numMessages >> 8) & 0xFF);
+        buffer[9] = (byte)(numMessages & 0xFF);
         var currentLength = PayloadPacketImpl.PAYLOAD_HEADER_SIZE;
         for (var m : this.messages) {
             final var messageLength = m.getLength();
-            buffer[currentLength] = (byte)((messageLength >> 24) & 0xff);
-            buffer[currentLength + 1] = (byte)((messageLength >> 16) & 0xff);
-            buffer[currentLength + 2] = (byte)((messageLength >> 8) & 0xff);
-            buffer[currentLength + 3] = (byte)(messageLength & 0xff);
+            buffer[currentLength] = (byte)((messageLength >> 24) & 0xFF);
+            buffer[currentLength + 1] = (byte)((messageLength >> 16) & 0xFF);
+            buffer[currentLength + 2] = (byte)((messageLength >> 8) & 0xFF);
+            buffer[currentLength + 3] = (byte)(messageLength & 0xFF);
             currentLength += Packet.INT_SIZE;
             System.arraycopy(m.serialize(), 0, buffer, currentLength, messageLength);
             currentLength += messageLength;
         }
         return buffer;
-    }
-
-    @Override
-    public Packet toAck() {
-        if (this.messages.isEmpty()) {
-            throw new UnsupportedOperationException("Cannot convert an empty packet to an ack packet.");
-        }
-        if (this.senderId == -1) {
-            return new AckPacketImpl(this.id, this.receiverId, senderId);
-        } else {
-            return new AckPacketImpl(this.id, this.receiverId, this.senderId);
-        }
     }
 
     @Override

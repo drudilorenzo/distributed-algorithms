@@ -13,10 +13,10 @@ import java.util.function.Consumer;
  * Stubborn link abstraction. The implementation doesn't retransmit packets forever but uses
  * an ack mechanism to retransmit only the packets that were not delivered.
  * It is characterized by the following properties:
- * - Stubborn delivery: If a correct process p sends a message m once to a correct
- *      process q, then q delivers m an infinite number of times.
- * - No creation: If some process q delivers a message m with sender p, then m
- *      was previously sent to q by process p.
+ * 1) Stubborn delivery: If a correct process p sends a message m once to a correct
+ *                       process q, then q delivers m an infinite number of times.
+ * 2) No creation:       If some process q delivers a message m with sender p, then m
+ *                       was previously sent to q by process p.
  * It implements the {@link Link} interface and it uses the {@link FairLossLink} abstraction.
  */
 public class StubbornLink implements Link {
@@ -31,15 +31,18 @@ public class StubbornLink implements Link {
     private final int myId;
     /* Number of messages sent to each receiver.
      * It is used as id for the packets sent to the receiver.
-     * The final and unique id of a packet is given by the tuple (id, senderId, receiverId).
+     * The final and unique id of a packet is given by the pair (id, senderId).
      */
     private final int[] counters;
     private final FairLossLink fLink;
     private final ExecutorService executor;
-    private final ConcurrentHashMap<Packet, Boolean>[] packetsSent;           // packets sent that wait for the ack
-    private final Consumer<Message> deliverer;
-    private final BlockingQueue<Packet> packetSendBuffer; // packet to send to the fair loss link
-    private final BlockingQueue<Message>[] messageSendBuffer; // messages that have to be added to a packet
+    // Packets sent that wait for the ack.
+    // Key: the packet.
+    // Value: true if the packet can be retransmitted, false otherwise.
+    private final ConcurrentHashMap<Packet, Boolean>[] packetsSent;
+    private final Consumer<Message> deliverCallback;
+    private final BlockingQueue<Packet> packetSendBuffer;           // packet to send to the fair loss link
+    private final BlockingQueue<Message>[] messageSendBuffer;       // messages that have to be added to a packet
 
     /**
      * Constructor of {@link StubbornLink}.
@@ -47,21 +50,19 @@ public class StubbornLink implements Link {
      * @param myId:      the id of the current process.
      * @param port:      the port to listen to.
      * @param hosts:     the list of hosts.
-     * @param deliverer: consumer of packets called every time a packet is received.
+     * @param deliverCallback: consumer of packets called every time a packet is received.
      */
-    public StubbornLink(final int myId, final int port, final Host[] hosts, final Consumer<Message> deliverer) {
+    public StubbornLink(final int myId, final int port, final Host[] hosts, final Consumer<Message> deliverCallback) {
         this.myId = myId;
-        this.deliverer = deliverer;
-        this.counters = new int[hosts.length - 1];
+        this.deliverCallback = deliverCallback;
+        this.counters = new int[hosts.length];
         Arrays.fill(this.counters, 0);
         this.packetsSent = new ConcurrentHashMap[hosts.length];
-        //this.packetsSent = new BlockingQueue[hosts.length];
         for (var i = 0; i < hosts.length; i++) {
             if (i + 1 == myId) {
                 continue;
             }
             this.packetsSent[i] = new ConcurrentHashMap<>();
-            //this.packetsSent[i] = new LinkedBlockingQueue<>(StubbornLink.SEND_BUFFER_CAPACITY);
         }
         this.messageSendBuffer = new LinkedBlockingQueue[hosts.length];
         for (int i = 0; i < hosts.length; i++) {
@@ -73,9 +74,9 @@ public class StubbornLink implements Link {
         this.packetSendBuffer = new LinkedBlockingQueue<>(StubbornLink.SEND_BUFFER_CAPACITY);
         this.fLink = new FairLossLink(port, hosts, this::deliver, this::packetSentCallback);
         this.executor = Executors.newFixedThreadPool(StubbornLink.NUM_THREADS);
-        this.executor.execute(this::createPackets);
-        this.executor.execute(this::retransmitPackets);
-        this.executor.execute(this::sendPackets);
+        this.executor.execute(this::createPackets);     // one thread to create packets.
+        this.executor.execute(this::retransmitPackets); // one thread to retransmit packets.
+        this.executor.execute(this::sendPackets);       // one thread to send packets to fair-loss.
     }
 
     @Override
@@ -83,9 +84,8 @@ public class StubbornLink implements Link {
         try {
             this.messageSendBuffer[message.getReceiverId() - 1].put(message);
         } catch (InterruptedException e) {
-            System.err.println("StubbornLink: Could not send message");
             Thread.currentThread().interrupt();
-            System.exit(1);
+            return;
         }
     }
 
@@ -105,33 +105,23 @@ public class StubbornLink implements Link {
     private void deliver(final Packet packet) {
         if (packet.isAck()) {
             // need to create a dummy payload packet to remove it from the set
-            var p = new PayloadPacketImpl(packet.getId(), packet.getReceiverId(), packet.getSenderId());
-            var res = this.packetsSent[packet.getSenderId() - 1].remove(p);
-            System.out.println("DL: Dim after : " + res);
+            var dummyPacket = new PayloadPacketImpl(packet.getId(), packet.getReceiverId(), packet.getSenderId());
+            this.packetsSent[packet.getSenderId() - 1].remove(dummyPacket);
         } else {
             try {
                 this.packetSendBuffer.put(packet.toAck());
             } catch (InterruptedException e) {
-                System.err.println("StubbornLink: Could not send ack");
                 Thread.currentThread().interrupt();
-                System.exit(1);
+                return;
             }
             for (var m : packet.getMessages()) {
-                this.deliverer.accept(m);
+                this.deliverCallback.accept(m);
             }
         }
     }
 
     private void packetSentCallback(final Packet packet) {
-        //try {
-        System.out.println("CBDim - before : " + this.packetsSent[packet.getReceiverId() - 1].size());
         this.packetsSent[packet.getReceiverId() - 1].put(packet, true);
-        System.out.println("CBDim - after : " + this.packetsSent[packet.getReceiverId() - 1].size());
-//        } catch (InterruptedException e) {
-//            System.err.println("StubbornLink: Could not send packet");
-//            Thread.currentThread().interrupt();
-//            System.exit(1);
-//        }
     }
 
     private void retransmitPackets() {
@@ -139,6 +129,7 @@ public class StubbornLink implements Link {
         final var timers = new long[this.packetsSent.length];
         Arrays.fill(timers, System.currentTimeMillis());
         Packet packet;
+        Boolean canRetransmit;
         while (!Thread.currentThread().isInterrupted()) {
             for (var i = 0; i < this.packetsSent.length; i++) {
                 if (this.myId == i + 1) {
@@ -147,17 +138,18 @@ public class StubbornLink implements Link {
                 final var now = System.currentTimeMillis();
                 // Retransmit the messages sent to the receiver i if the timer is expired.
                 if (now - timers[i] >= StubbornLink.RETRANSMISSION_TIME) {
-                    for (var en : this.packetsSent[i].entrySet()) {
-                        if (!en.getValue()) {
+                    for (var entry : this.packetsSent[i].entrySet()) {
+                        packet = entry.getKey();
+                        canRetransmit = entry.getValue();
+                        if (!canRetransmit) {
                             continue;
                         }
                         try {
-                            this.packetSendBuffer.put(en.getKey());
-                            this.packetsSent[i].put(en.getKey(), false);
+                            this.packetSendBuffer.put(packet);
+                            this.packetsSent[i].put(packet, false);
                         } catch (InterruptedException e) {
-                            System.err.println("StubbornLink: Could not retransmit packet");
                             Thread.currentThread().interrupt();
-                            System.exit(1);
+                            return;
                         }
                     }
                     timers[i] = now;
@@ -193,9 +185,8 @@ public class StubbornLink implements Link {
                             var messageToAdd = this.messageSendBuffer[i].take();
                             packet.addMessage(messageToAdd);
                         } catch (InterruptedException e) {
-                            System.err.println("StubbornLink: Could not create packet");
                             Thread.currentThread().interrupt();
-                            System.exit(1);
+                            return;
                         }
                         message = this.messageSendBuffer[i].peek();
                         // If there are yet at least PACKET_LOWER_BOUND messages in the packet,
@@ -203,6 +194,7 @@ public class StubbornLink implements Link {
                         if (message == null && packet.getMessages().size() >= StubbornLink.PACKET_LOWER_BOUND) {
                             break;
                         }
+                        // Else wait for more messages.
                         while (message == null && numAttempts < StubbornLink.NUM_ATTEMPTS) {
                             numAttempts++;
                         }
@@ -210,9 +202,8 @@ public class StubbornLink implements Link {
                     try {
                         this.packetSendBuffer.put(packet);
                     } catch (InterruptedException e) {
-                        System.err.println("StubbornLink: Could not create packet");
                         Thread.currentThread().interrupt();
-                        System.exit(1);
+                        return;
                     }
                 }
             }
@@ -227,9 +218,8 @@ public class StubbornLink implements Link {
                 this.packetsSent[packet.getReceiverId() - 1].put(packet, false);
                 this.fLink.send(packet);
             } catch (InterruptedException e) {
-                System.err.println("StubbornLink: Could not send packet");
                 Thread.currentThread().interrupt();
-                System.exit(1);
+                return;
             }
         }
     }

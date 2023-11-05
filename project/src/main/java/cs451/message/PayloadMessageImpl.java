@@ -5,7 +5,7 @@ package cs451.message;
  */
 public class PayloadMessageImpl implements Message {
 
-    public static final int HEADER_SIZE = 9; // size in byte of the message header without the payload
+    public static final int HEADER_SIZE = 8; // size in byte of the message header without the payload
 
     private final int id;               // id of the message
     private final byte senderId;        // id of the sender (max value: 128)
@@ -32,13 +32,11 @@ public class PayloadMessageImpl implements Message {
         this.msgToByte[1] = (byte)((this.id >> 16) & 0xFF);
         this.msgToByte[2] = (byte)((this.id >> 8) & 0xFF);
         this.msgToByte[3] = (byte)(this.id & 0xff);
-        // 1 byte for the senderId
-        this.msgToByte[4] = (byte)((senderId - 1) & 0xFF);
         // 4 bytes for the length of the payload
-        this.msgToByte[5] = (byte)((payload.length >> 24) & 0xFF);
-        this.msgToByte[6] = (byte)((payload.length >> 16) & 0xFF);
-        this.msgToByte[7] = (byte)((payload.length >> 8) & 0xFF);
-        this.msgToByte[8] = (byte)(payload.length & 0xFF);
+        this.msgToByte[4] = (byte)((payload.length >> 24) & 0xFF);
+        this.msgToByte[5] = (byte)((payload.length >> 16) & 0xFF);
+        this.msgToByte[6] = (byte)((payload.length >> 8) & 0xFF);
+        this.msgToByte[7] = (byte)(payload.length & 0xFF);
         // n bytes for the payload
         System.arraycopy(payload, 0, this.msgToByte, PayloadMessageImpl.HEADER_SIZE, payload.length);
     }
@@ -87,7 +85,6 @@ public class PayloadMessageImpl implements Message {
             return false;
         }
         return (this.getId() == ((Message) obj).getId())
-                && (this.isAck() == ((Message) obj).isAck())
                 && (this.getSenderId() == ((Message) obj).getSenderId())
                 && (this.getReceiverId() == ((Message) obj).getReceiverId());
     }
@@ -95,7 +92,6 @@ public class PayloadMessageImpl implements Message {
     @Override
     public int hashCode() {
         return Integer.toString(this.getId()).hashCode()
-                + Boolean.toString(this.isAck()).hashCode()
                 + Integer.toString(this.getSenderId()).hashCode()
                 + Integer.toString(this.getReceiverId()).hashCode();
     }
