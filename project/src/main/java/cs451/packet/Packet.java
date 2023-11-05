@@ -68,6 +68,20 @@ public interface Packet {
     List<Message> getMessages();
 
     /**
+     * Check if the packet can be transmitted.
+     *
+     * @return True if the packet can be transmitted, false otherwise.
+     */
+    boolean canTransmit();
+
+    /**
+     * Set the packet as transmitted.
+     *
+     * @param transmit: true if the packet can be transmitted, false otherwise.
+     */
+    void setTransmit(boolean transmit);
+
+    /**
      * Convert the packet to an ack packet.
      *
      * @return The ack packet.

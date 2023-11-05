@@ -40,7 +40,8 @@ public class StubbornLink implements Link {
     // Key: the packet.
     // Value: true if the packet can be retransmitted, false otherwise.
     private final ConcurrentHashMap<Packet, Boolean>[] packetsSent;
-    private final Consumer<Message> deliverCallback;
+    //private final BlockingQueue<Packet>[] packetsSent;
+    private final Consumer<Packet> deliverCallback;
     private final BlockingQueue<Packet> packetSendBuffer;           // packet to send to the fair loss link
     private final BlockingQueue<Message>[] messageSendBuffer;       // messages that have to be added to a packet
 
@@ -52,7 +53,7 @@ public class StubbornLink implements Link {
      * @param hosts:     the list of hosts.
      * @param deliverCallback: consumer of packets called every time a packet is received.
      */
-    public StubbornLink(final int myId, final int port, final Host[] hosts, final Consumer<Message> deliverCallback) {
+    public StubbornLink(final int myId, final int port, final Host[] hosts, final Consumer<Packet> deliverCallback) {
         this.myId = myId;
         this.deliverCallback = deliverCallback;
         this.counters = new int[hosts.length];
@@ -64,6 +65,13 @@ public class StubbornLink implements Link {
             }
             this.packetsSent[i] = new ConcurrentHashMap<>();
         }
+        //this.packetsSent = new LinkedBlockingQueue[hosts.length];
+//        for (var i = 0; i < hosts.length; i++) {
+//            if (i + 1 == myId) {
+//                continue;
+//            }
+//            this.packetsSent[i] = new LinkedBlockingQueue<>();
+//        }
         this.messageSendBuffer = new LinkedBlockingQueue[hosts.length];
         for (int i = 0; i < hosts.length; i++) {
             if (i + 1 == myId) {
@@ -113,9 +121,7 @@ public class StubbornLink implements Link {
                 Thread.currentThread().interrupt();
                 return;
             }
-            for (var m : packet.getMessages()) {
-                this.deliverCallback.accept(m);
-            }
+            this.deliverCallback.accept(packet);
         }
     }
 

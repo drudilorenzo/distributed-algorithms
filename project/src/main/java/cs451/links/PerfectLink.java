@@ -2,11 +2,13 @@ package cs451.links;
 
 import cs451.Host;
 import cs451.message.Message;
+import cs451.packet.Packet;
 
+import java.util.LinkedList;
 import java.util.Set;
 import java.util.List;
-import java.util.HashSet;
 import java.util.function.BiConsumer;
+import java.util.concurrent.ConcurrentSkipListSet;
 
 /**
  * Perfect link (or reliable link) abstraction. It is the strongest variant of the link abstractions, and it has
@@ -22,7 +24,7 @@ import java.util.function.BiConsumer;
 public class PerfectLink implements Link {
 
     private final StubbornLink sLink;
-    private final Set<Integer>[] delivered;
+    private final List<Integer>[] delivered;
     private final BiConsumer<Integer, Integer> deliverCallback;
 
     /**
@@ -36,9 +38,9 @@ public class PerfectLink implements Link {
     public PerfectLink(final int myId, final int port,
         final List<Host> hosts, final BiConsumer<Integer, Integer> deliverCallback) {
         // Use a set of delivered messages for each sender host.
-        this.delivered = new HashSet[hosts.size()];
+        this.delivered = new LinkedList[hosts.size()];
         for (var i = 0; i < hosts.size(); i++) {
-            this.delivered[i] = new HashSet<>();
+            this.delivered[i] = new LinkedList<>();
         }
         this.deliverCallback = deliverCallback;
         var hostsArray = new Host[hosts.size()];
@@ -59,12 +61,14 @@ public class PerfectLink implements Link {
     /*
      * Deliver a packet if it hasn't been delivered yet.
      */
-    private void deliver(final Message message) {
-        final var senderId = message.getSenderId();
-        final var messageId = message.getId();
-        if (!this.delivered[senderId - 1].contains(messageId)) {
-            this.delivered[senderId - 1].add(messageId);
-            this.deliverCallback.accept(messageId, senderId);
+    private void deliver(final Packet packet) {
+        final var senderId = packet.getSenderId();
+        final var packetId = packet.getId();
+        if (!this.delivered[senderId - 1].contains(packetId)) {
+            this.delivered[senderId - 1].add(packetId);
+            for (final var message : packet.getMessages()) {
+                this.deliverCallback.accept(message.getId(), senderId);
+            }
         }
     }
 

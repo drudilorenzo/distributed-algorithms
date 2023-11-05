@@ -2,6 +2,8 @@ package cs451.packet;
 
 import java.util.List;
 import java.util.ArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import cs451.message.Message;
 
 /**
@@ -29,6 +31,7 @@ public class PayloadPacketImpl implements Packet {
     private int senderId;
     private int receiverId;
     private final int id;
+    private AtomicBoolean canTransmit;
     private final List<Message> messages;
 
     public PayloadPacketImpl(final int id) {
@@ -38,6 +41,7 @@ public class PayloadPacketImpl implements Packet {
         this.receiverId = -1;
         this.messages = new ArrayList<>();
         this.length = PayloadPacketImpl.PAYLOAD_HEADER_SIZE;
+        this.canTransmit = new AtomicBoolean(true);
     }
 
     /**
@@ -116,6 +120,16 @@ public class PayloadPacketImpl implements Packet {
     @Override
     public List<Message> getMessages() {
         return new ArrayList<>(this.messages); // shallow copy
+    }
+
+    @Override
+    public boolean canTransmit() {
+        return this.canTransmit.get();
+    }
+
+    @Override
+    public void setTransmit(boolean transmit) {
+        this.canTransmit.set(transmit);
     }
 
     @Override

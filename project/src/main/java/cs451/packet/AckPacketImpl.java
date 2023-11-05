@@ -3,6 +3,7 @@ package cs451.packet;
 import cs451.message.Message;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Implementation of an ack {@link Packet}.
@@ -17,11 +18,13 @@ public class AckPacketImpl implements Packet {
     private final int id;
     private final int senderId;
     private final int receiverId;
+    private AtomicBoolean canTransmit;
 
     public AckPacketImpl(final int id, final int senderId, final int receiverId) {
         this.id = id;
         this.senderId = senderId;
         this.receiverId = receiverId;
+        this.canTransmit = new AtomicBoolean(true);
     }
 
     @Override
@@ -62,6 +65,16 @@ public class AckPacketImpl implements Packet {
     @Override
     public List<Message> getMessages() {
         throw new UnsupportedOperationException("No getMessages for ACK packets.");
+    }
+
+    @Override
+    public boolean canTransmit() {
+        return this.canTransmit.get();
+    }
+
+    @Override
+    public void setTransmit(boolean transmit) {
+        this.canTransmit.set(transmit);
     }
 
     @Override

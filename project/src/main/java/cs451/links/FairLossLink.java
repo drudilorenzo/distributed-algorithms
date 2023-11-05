@@ -114,9 +114,9 @@ public class FairLossLink implements Link {
     }
 
     private void sendBuffer() {
+        Host receiver;
         Packet packet;
         int receiverId;
-        Host receiver;
         DatagramPacket datagram;
         while (!Thread.currentThread().isInterrupted()) {
             try {
