@@ -1,6 +1,5 @@
 package cs451;
 
-import cs451.message.Message;
 import cs451.links.PerfectLink;
 import cs451.message.PayloadMessageImpl;
 
@@ -8,7 +7,12 @@ import java.io.File;
 import java.util.Scanner;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.BufferedWriter;
+
+/**
+ * Lorenzo Drudi
+ * lorenzo.drudi@epfl.ch
+ * 367980
+ */
 
 /**
  * To execute:
@@ -20,7 +24,7 @@ public class Main {
     // To be able to use them they should be static.
     private static long timeInit;         // time of the first send
     private static PerfectLink pLink;     // perfect link abstraction
-    private static BufferedWriter writer; // buffered writer to write to the output file
+    private static FileWriter writer;     // file writer to write to the output file
 
     private static void printDeliver(final int seqNum, final int senderId) {
         try {
@@ -74,7 +78,14 @@ public class Main {
         System.out.println("My ID: " + parser.myId() + "\n");
         System.out.println("List of resolved hosts is:");
         System.out.println("==========================");
-        for (Host host: parser.hosts()) {
+        Host host;
+        int myPort = -1;
+        for (int i = 0; i < parser.hosts().size(); i++) {
+            host = parser.hosts().get(i);
+            if (host.getId() == parser.myId()) {
+                myPort = host.getPort();
+                break;
+            }
             System.out.println(host.getId());
             System.out.println("Human-readable IP: " + host.getIp());
             System.out.println("Human-readable Port: " + host.getPort());
@@ -106,15 +117,6 @@ public class Main {
             System.exit(1);
         }
 
-        // Get port of the process
-        int myPort = -1;
-        for (Host host: parser.hosts()) {
-            if (host.getId() == parser.myId()) {
-                myPort = host.getPort();
-                break;
-            }
-        }
-
         // If the process is not in the hosts file, exit
         if (myPort == -1) {
             System.out.println("Could not find my port.");
@@ -122,8 +124,7 @@ public class Main {
         }
 
         try {
-            var fWriter = new FileWriter(parser.output());
-            writer = new BufferedWriter(fWriter);
+            writer = new FileWriter(parser.output());
         } catch (IOException e) {
             System.out.println("Error opening output file.");
             System.exit(1);
@@ -149,12 +150,9 @@ public class Main {
                     System.exit(1);
                 }
 
-                // Create payload (int to byte array)
-                var payload = new byte[4];
-                payload[0] = (byte)((i >> 24) & 0xff);
-                payload[1] = (byte)((i >> 16) & 0xff);
-                payload[2] = (byte)((i >> 8) & 0xff);
-                payload[3] = (byte)(i & 0xff);
+                // Create payload.
+                // Empty since the seq num is in the message id.
+                var payload = new byte[0];
 
                 Main.pLink.send(
                         new PayloadMessageImpl(

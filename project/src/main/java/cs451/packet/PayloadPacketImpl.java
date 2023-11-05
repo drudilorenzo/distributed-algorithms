@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import cs451.message.Message;
+import cs451.message.MessageUtils;
 
 /**
  * Implementation of a payload {@link Packet}.
@@ -22,26 +23,26 @@ public class PayloadPacketImpl implements Packet {
     /**
      * Maximum size of a packet in byte.
      * Header + payload.
-     * Every packet, in the current implementation, can contain at most 8 messages (with maximum size 12 bytes).
+     * Every packet, in the current implementation, can contain at most 8 messages (8 bytes each).
      */
-    public static final int MAX_PAYLOAD_SIZE = 138;
+    public static final int MAX_PAYLOAD_SIZE = 106;
     private static final int MAX_NUM_MESSAGES = 8; // maximum number of messages in a packet
 
     private int length;
     private int senderId;
     private int receiverId;
     private final int id;
-    private AtomicBoolean canTransmit;
-    private final List<Message> messages;
+    private final AtomicBoolean canTransmit;
+    private final List<byte[]> messagesInBytes;
 
     public PayloadPacketImpl(final int id) {
         this.id = id;
         // The sender id and the receiver id are not set until the first message is added.
         this.senderId = -1;
         this.receiverId = -1;
-        this.messages = new ArrayList<>();
         this.length = PayloadPacketImpl.PAYLOAD_HEADER_SIZE;
-        this.canTransmit = new AtomicBoolean(true);
+        this.canTransmit = new AtomicBoolean(false);
+        this.messagesInBytes = new ArrayList<>();
     }
 
     /**
@@ -101,15 +102,16 @@ public class PayloadPacketImpl implements Packet {
         if (this.senderId == -1) {
             this.senderId = message.getSenderId();
         }
+
         // 4 bytes for the length of the message.
         this.length += Packet.INT_SIZE + message.getLength();
-        this.messages.add(message);
+        this.messagesInBytes.add(message.serialize());
     }
 
     @Override
     public boolean canContainMessage(final int messageLength) {
         return (this.length + Packet.INT_SIZE + messageLength <= PayloadPacketImpl.MAX_PAYLOAD_SIZE)
-            && (this.messages.size() + 1 <= PayloadPacketImpl.MAX_NUM_MESSAGES);
+            && (this.messagesInBytes.size() + 1 <= PayloadPacketImpl.MAX_NUM_MESSAGES);
     }
 
     public int getLength() {
@@ -119,7 +121,14 @@ public class PayloadPacketImpl implements Packet {
 
     @Override
     public List<Message> getMessages() {
-        return new ArrayList<>(this.messages); // shallow copy
+        // Need to convert the messages in bytes to messages.
+        List<Message> convertedMessages = new ArrayList<>();
+        if (!this.messagesInBytes.isEmpty()) {
+            for (byte[] messageInBytes : this.messagesInBytes) {
+                convertedMessages.add(MessageUtils.deserialize(messageInBytes, senderId, receiverId));
+            }
+        }
+        return convertedMessages;
     }
 
     @Override
@@ -134,9 +143,6 @@ public class PayloadPacketImpl implements Packet {
 
     @Override
     public Packet toAck() {
-        if (this.messages.isEmpty()) {
-            throw new UnsupportedOperationException("Cannot convert an empty packet to an ack packet.");
-        }
         return new AckPacketImpl(this.id, this.receiverId, this.senderId);
     }
 
@@ -150,20 +156,23 @@ public class PayloadPacketImpl implements Packet {
         buffer[4] = (byte)((this.receiverId - 1) & 0xFF);
         buffer[4] |= (byte)(0);
         buffer[5] = (byte)((this.senderId - 1) & 0xFF);
-        final var numMessages = this.messages.size();
+        final var numMessages = this.messagesInBytes.size();
         buffer[6] = (byte)((numMessages >> 24) & 0xFF);
         buffer[7] = (byte)((numMessages >> 16) & 0xFF);
         buffer[8] = (byte)((numMessages >> 8) & 0xFF);
         buffer[9] = (byte)(numMessages & 0xFF);
         var currentLength = PayloadPacketImpl.PAYLOAD_HEADER_SIZE;
-        for (var m : this.messages) {
-            final var messageLength = m.getLength();
+        byte[] m;
+        int messageLength;
+        for (int i = 0; i < numMessages; i++) {
+            m = this.messagesInBytes.get(i);
+            messageLength = m.length;
             buffer[currentLength] = (byte)((messageLength >> 24) & 0xFF);
             buffer[currentLength + 1] = (byte)((messageLength >> 16) & 0xFF);
             buffer[currentLength + 2] = (byte)((messageLength >> 8) & 0xFF);
             buffer[currentLength + 3] = (byte)(messageLength & 0xFF);
             currentLength += Packet.INT_SIZE;
-            System.arraycopy(m.serialize(), 0, buffer, currentLength, messageLength);
+            System.arraycopy(m, 0, buffer, currentLength, messageLength);
             currentLength += messageLength;
         }
         return buffer;

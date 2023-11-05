@@ -18,13 +18,13 @@ public class AckPacketImpl implements Packet {
     private final int id;
     private final int senderId;
     private final int receiverId;
-    private AtomicBoolean canTransmit;
+    private final AtomicBoolean canTransmit;
 
     public AckPacketImpl(final int id, final int senderId, final int receiverId) {
         this.id = id;
         this.senderId = senderId;
         this.receiverId = receiverId;
-        this.canTransmit = new AtomicBoolean(true);
+        this.canTransmit = new AtomicBoolean(false);
     }
 
     @Override

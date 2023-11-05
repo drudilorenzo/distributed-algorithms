@@ -24,7 +24,7 @@ public class StubbornLink implements Link {
     private static final int NUM_THREADS = 3;
     private static final int NUM_ATTEMPTS = 3;
     private static final int PACKET_LOWER_BOUND = 3;
-    private static final int SEND_BUFFER_CAPACITY = 32;
+    private static final int SEND_BUFFER_CAPACITY = 8;
     private static final long RETRANSMISSION_TIME = 100;
     private final static int SOCKET_TERMINATION_TIME = 50;
 
@@ -39,8 +39,7 @@ public class StubbornLink implements Link {
     // Packets sent that wait for the ack.
     // Key: the packet.
     // Value: true if the packet can be retransmitted, false otherwise.
-    private final ConcurrentHashMap<Packet, Boolean>[] packetsSent;
-    //private final BlockingQueue<Packet>[] packetsSent;
+    private final BlockingQueue<Packet>[] packetsSent;
     private final Consumer<Packet> deliverCallback;
     private final BlockingQueue<Packet> packetSendBuffer;           // packet to send to the fair loss link
     private final BlockingQueue<Message>[] messageSendBuffer;       // messages that have to be added to a packet
@@ -58,20 +57,13 @@ public class StubbornLink implements Link {
         this.deliverCallback = deliverCallback;
         this.counters = new int[hosts.length];
         Arrays.fill(this.counters, 0);
-        this.packetsSent = new ConcurrentHashMap[hosts.length];
+        this.packetsSent = new LinkedBlockingQueue[hosts.length];
         for (var i = 0; i < hosts.length; i++) {
             if (i + 1 == myId) {
                 continue;
             }
-            this.packetsSent[i] = new ConcurrentHashMap<>();
+            this.packetsSent[i] = new LinkedBlockingQueue<>(StubbornLink.SEND_BUFFER_CAPACITY);
         }
-        //this.packetsSent = new LinkedBlockingQueue[hosts.length];
-//        for (var i = 0; i < hosts.length; i++) {
-//            if (i + 1 == myId) {
-//                continue;
-//            }
-//            this.packetsSent[i] = new LinkedBlockingQueue<>();
-//        }
         this.messageSendBuffer = new LinkedBlockingQueue[hosts.length];
         for (int i = 0; i < hosts.length; i++) {
             if (i + 1 == myId) {
@@ -80,7 +72,7 @@ public class StubbornLink implements Link {
             this.messageSendBuffer[i] = new LinkedBlockingQueue<>(StubbornLink.SEND_BUFFER_CAPACITY);
         }
         this.packetSendBuffer = new LinkedBlockingQueue<>(StubbornLink.SEND_BUFFER_CAPACITY);
-        this.fLink = new FairLossLink(port, hosts, this::deliver, this::packetSentCallback);
+        this.fLink = new FairLossLink(port, hosts, this::deliver);
         this.executor = Executors.newFixedThreadPool(StubbornLink.NUM_THREADS);
         this.executor.execute(this::createPackets);     // one thread to create packets.
         this.executor.execute(this::retransmitPackets); // one thread to retransmit packets.
@@ -125,16 +117,10 @@ public class StubbornLink implements Link {
         }
     }
 
-    private void packetSentCallback(final Packet packet) {
-        this.packetsSent[packet.getReceiverId() - 1].put(packet, true);
-    }
-
     private void retransmitPackets() {
         // Use a timer for each receiver.
         final var timers = new long[this.packetsSent.length];
         Arrays.fill(timers, System.currentTimeMillis());
-        Packet packet;
-        Boolean canRetransmit;
         while (!Thread.currentThread().isInterrupted()) {
             for (var i = 0; i < this.packetsSent.length; i++) {
                 if (this.myId == i + 1) {
@@ -143,15 +129,12 @@ public class StubbornLink implements Link {
                 final var now = System.currentTimeMillis();
                 // Retransmit the messages sent to the receiver i if the timer is expired.
                 if (now - timers[i] >= StubbornLink.RETRANSMISSION_TIME) {
-                    for (var entry : this.packetsSent[i].entrySet()) {
-                        packet = entry.getKey();
-                        canRetransmit = entry.getValue();
-                        if (!canRetransmit) {
-                            continue;
-                        }
+                    for (var packet : this.packetsSent[i]) {
                         try {
-                            this.packetSendBuffer.put(packet);
-                            this.packetsSent[i].put(packet, false);
+                            if (packet.canTransmit()) {
+                                packet.setTransmit(false);
+                                this.packetSendBuffer.put(packet);
+                            }
                         } catch (InterruptedException e) {
                             Thread.currentThread().interrupt();
                             return;
@@ -206,6 +189,7 @@ public class StubbornLink implements Link {
                     }
                     try {
                         this.packetSendBuffer.put(packet);
+                        this.packetsSent[i].put(packet);
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
                         return;
@@ -218,14 +202,24 @@ public class StubbornLink implements Link {
     private void sendPackets() {
         Packet packet;
         while (!Thread.currentThread().isInterrupted()) {
+            Runtime runtime = Runtime.getRuntime();
+            // To convert from Bytes to MegaBytes:
+            // 1 MB = 1024 KB and 1 KB = 1024 Bytes.
+            // Therefore, 1 MB = 1024 * 1024 Bytes.
+            long MegaBytes = 1024 * 1024;
+            long totalMemory = runtime.totalMemory() / MegaBytes;       
+            long freeMemory = runtime.freeMemory() / MegaBytes;    
+            long memoryInUse = totalMemory - freeMemory;
+            if (memoryInUse > 50) {
+                System.gc();
+            }
             try {
                 packet = this.packetSendBuffer.take();
-                this.packetsSent[packet.getReceiverId() - 1].put(packet, false);
                 this.fLink.send(packet);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return;
-            }
+           } catch (InterruptedException e) {
+               Thread.currentThread().interrupt();
+               return;
+           }
         }
     }
     

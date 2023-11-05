@@ -25,13 +25,12 @@ import java.util.function.Consumer;
 public class FairLossLink implements Link {
 
     private final static int NUM_THREADS = 2;
-    private final static int MAX_CAPACITY = 32;            // maximum send buffer capacity.
+    private final static int MAX_CAPACITY = 8;            // maximum send buffer capacity.
     private final static int SOCKET_TERMINATION_TIME = 50; // time to wait for the socket to close.
 
     private final Host[] hosts;
     private DatagramSocket socket;
     private final ExecutorService executor;
-    private final Consumer<Packet> sendCallback;    // callback to call when a packet is sent.
     private final Consumer<Packet> deliverCallback; // callback to call when a packet is received.
     private final BlockingQueue<Packet> sendBuffer; // buffer of packets to send.
 
@@ -41,10 +40,9 @@ public class FairLossLink implements Link {
      * @param port:            the port to listen to.
      * @param hosts:           the list of hosts.
      * @param deliverCallback: consumer of packets called every time a packet is received.
-     * @param sendCallback:    consumer of packets called every time a packet is sent.
      */
     public FairLossLink(final int port, final Host[] hosts,
-        final Consumer<Packet> deliverCallback, Consumer<Packet> sendCallback) {
+        final Consumer<Packet> deliverCallback) {
         try {
             this.socket = new DatagramSocket(port);
         } catch (SocketException e) {
@@ -52,12 +50,13 @@ public class FairLossLink implements Link {
             Thread.currentThread().interrupt();
             System.exit(1);
         }
-        this.sendCallback = sendCallback;
         this.deliverCallback = deliverCallback;
         this.hosts = new Host[hosts.length];
         this.sendBuffer = new LinkedBlockingQueue<>(FairLossLink.MAX_CAPACITY);
-        for (final var host : hosts) {
-            this.hosts[host.getId() - 1] = host;
+        Host h;
+        for (int i = 0; i < hosts.length; i++) {
+            h = hosts[i];
+            this.hosts[h.getId() - 1] = h;
         }
         this.executor = Executors.newFixedThreadPool(FairLossLink.NUM_THREADS);
         executor.execute(this::deliver);    // one thread to deliver packets.
@@ -130,7 +129,7 @@ public class FairLossLink implements Link {
                         receiver.getPort()
                 );
                 this.socket.send(datagram);
-                this.sendCallback.accept(packet);
+                packet.setTransmit(true);
             } catch (IOException | InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return;
