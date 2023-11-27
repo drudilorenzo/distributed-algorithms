@@ -62,7 +62,8 @@ public class StubbornLink implements Link {
             if (i + 1 == myId) {
                 continue;
             }
-            this.packetsSent[i] = new LinkedBlockingQueue<>(StubbornLink.SEND_BUFFER_CAPACITY);
+            //this.packetsSent[i] = new LinkedBlockingQueue<>(StubbornLink.SEND_BUFFER_CAPACITY);
+            this.packetsSent[i] = new LinkedBlockingQueue<>(Integer.MAX_VALUE);
         }
         this.messageSendBuffer = new LinkedBlockingQueue[hosts.length];
         for (int i = 0; i < hosts.length; i++) {

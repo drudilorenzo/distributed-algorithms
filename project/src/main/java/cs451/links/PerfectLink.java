@@ -5,7 +5,7 @@ import cs451.message.Message;
 import cs451.packet.Packet;
 
 import java.util.List;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.concurrent.ConcurrentSkipListSet;
 
 /**
@@ -22,8 +22,8 @@ import java.util.concurrent.ConcurrentSkipListSet;
 public class PerfectLink implements Link {
 
     private final StubbornLink sLink;
+    private final Consumer<Packet> deliverCallback;
     private final ConcurrentSkipListSet<Integer>[] delivered;
-    private final BiConsumer<Integer, Integer> deliverCallback;
 
     /**
      * Constructor of {@link PerfectLink}.
@@ -34,7 +34,7 @@ public class PerfectLink implements Link {
      * @param deliverCallback: consumer of packets called every time a packet is received.
      */
     public PerfectLink(final int myId, final int port,
-        final List<Host> hosts, final BiConsumer<Integer, Integer> deliverCallback) {
+        final List<Host> hosts, final Consumer<Packet> deliverCallback) {
         // Use a set of delivered messages for each sender host.
         this.delivered = new ConcurrentSkipListSet[hosts.size()];
         for (var i = 0; i < hosts.size(); i++) {
@@ -64,10 +64,7 @@ public class PerfectLink implements Link {
         final var packetId = packet.getId();
         if (!this.delivered[senderId - 1].contains(packetId)) {
             this.delivered[senderId - 1].add(packetId);
-            var messages = packet.getMessages();
-            for (int i = 0; i < messages.size(); i++) {
-                this.deliverCallback.accept(messages.get(i).getId(), senderId);
-            }
+            this.deliverCallback.accept(packet);
         }
     }
 

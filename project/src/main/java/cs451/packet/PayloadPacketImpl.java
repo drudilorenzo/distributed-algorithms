@@ -23,9 +23,9 @@ public class PayloadPacketImpl implements Packet {
     /**
      * Maximum size of a packet in byte.
      * Header + payload.
-     * Every packet, in the current implementation, can contain at most 8 messages (8 bytes each).
+     * Every packet, in the current implementation, can contain at most 8 messages (9 bytes each).
      */
-    public static final int MAX_PAYLOAD_SIZE = 106;
+    public static final int MAX_PAYLOAD_SIZE = 114;
     private static final int MAX_NUM_MESSAGES = 8; // maximum number of messages in a packet
 
     private int length;

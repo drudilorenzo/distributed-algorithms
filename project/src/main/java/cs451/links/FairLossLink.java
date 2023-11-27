@@ -24,10 +24,12 @@ import java.util.function.Consumer;
  */
 public class FairLossLink implements Link {
 
-    private final static int NUM_THREADS = 2;
+    private final static int NUM_THREADS = 3;
     private final static int MAX_CAPACITY = 8;            // maximum send buffer capacity.
     private final static int SOCKET_TERMINATION_TIME = 50; // time to wait for the socket to close.
 
+    private long time_send;
+    private long time_receive;
     private final Host[] hosts;
     private DatagramSocket socket;
     private final ExecutorService executor;
@@ -61,6 +63,7 @@ public class FairLossLink implements Link {
         this.executor = Executors.newFixedThreadPool(FairLossLink.NUM_THREADS);
         executor.execute(this::deliver);    // one thread to deliver packets.
         executor.execute(this::sendBuffer); // one thread to send packets.
+        executor.execute(this::checkDeadlock);
     }
 
     @Override
@@ -103,6 +106,7 @@ public class FairLossLink implements Link {
             datagram = new DatagramPacket(buf, buf.length);
             try {
                 this.socket.receive(datagram);
+                this.time_receive = System.currentTimeMillis();
             } catch (IOException e) {
                 Thread.currentThread().interrupt();
                 return;
@@ -129,11 +133,36 @@ public class FairLossLink implements Link {
                         receiver.getPort()
                 );
                 this.socket.send(datagram);
+                System.currentTimeMillis();
                 packet.setTransmit(true);
             } catch (IOException | InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return;
             } 
+        }
+    }
+
+    private void checkDeadlock() {
+        long prev_receive = -1;
+        long prev_send = -1;
+        while (!Thread.currentThread().isInterrupted()) {
+            if (prev_receive == -1) {
+                prev_receive = this.time_receive;
+            } else if (this.time_receive - prev_receive > 2000) {
+                System.out.println("DEADLOCK RECEIVE");
+                System.exit(1);
+            } else {
+                prev_receive = this.time_receive;
+            }
+
+            if (prev_send == -1) {
+                prev_send = this.time_send;
+            } else if (this.time_send - prev_send > 2000) {
+                System.out.println("DEADLOCK SEND");
+                System.exit(1);
+            } else {
+                prev_send = this.time_send;
+            }
         }
     }
 

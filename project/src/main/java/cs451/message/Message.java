@@ -27,6 +27,13 @@ public interface Message {
     int getReceiverId();
 
     /**
+     * Get the id of the original sender.
+     *
+     * @return The id of the original sender (since the maximum number of processes is 128 use a byte).
+     */
+    int getOriginalSenderId();
+
+    /**
      * Get the length of the payload.
      *
      * @return The length of the payload.

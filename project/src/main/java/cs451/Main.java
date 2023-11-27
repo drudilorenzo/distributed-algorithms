@@ -1,30 +1,34 @@
 package cs451;
 
-import cs451.links.PerfectLink;
-import cs451.message.PayloadMessageImpl;
+import cs451.broadcast.FIFOBroadcast;
 
 import java.io.File;
 import java.util.Scanner;
 import java.io.FileWriter;
 import java.io.IOException;
 
-/**
- * Lorenzo Drudi
- * lorenzo.drudi@epfl.ch
- * 367980
+/*
+ * Student:
+ * - name:   Lorenzo Drudi
+ * - email:  lorenzo.drudi@epfl.ch
+ * - SCIPER: 367980
  */
 
-/**
+/*
  * To execute:
- * ./run.sh --id 1 --hosts ../example/hosts --output ../example/output.txt ../example/configs/perfect-links.config
- */
+ *
+ * Manual:
+ * ./run.sh --id 1 --hosts ../example/hosts --output ../example/output/1.output ../example/configs/fifo-broadcast.confi
+ *
+ * Automatic:
+ * ./stress.py fifo -r ../project/run.sh -l ../example/output -p 3 -m 5
+ * */
 
 public class Main {
 
     // To be able to use them they should be static.
-    private static long timeInit;         // time of the first send
-    private static PerfectLink pLink;     // perfect link abstraction
-    private static FileWriter writer;     // file writer to write to the output file
+    private static FIFOBroadcast fifoBroadcast; // fifo broadcast abstraction
+    private static FileWriter writer;           // file writer to write to the output file
 
     private static void printDeliver(final int seqNum, final int senderId) {
         try {
@@ -36,13 +40,12 @@ public class Main {
     }
 
     private static void handleSignal() {
-        System.out.println("Stop: " + (System.currentTimeMillis() - Main.timeInit) + " ms\n");
 
         //immediately stop network packet processing
         System.out.println("Immediately stopping network packet processing.");
 
         //close all connections
-        Main.pLink.close();
+        Main.fifoBroadcast.close();
 
         // write/flush output file
         System.out.println("Writing output.");
@@ -105,13 +108,10 @@ public class Main {
 
         // Read config file
         int numMessages = 0;
-        int receiverId = 0;
         try (Scanner scanner = new Scanner(new File(parser.config()))) {
             scanner.useDelimiter(" |\\n");
             numMessages = scanner.nextInt();
             System.out.println("Number of messages to broadcast: " + numMessages);
-            receiverId = scanner.nextInt();
-            System.out.println("Receiver Id: " + receiverId + "\n");
         } catch (IOException e) {
             System.out.println("Error reading config file.");
             System.exit(1);
@@ -130,40 +130,32 @@ public class Main {
             System.exit(1);
         }
 
-        System.out.print("PerfectLink is ready to send messages.\n");
+        // Initialize the fifo broadcast abstraction
+        System.out.println("Initializing fifo broadcast abstraction.\n");
+        Main.fifoBroadcast = new FIFOBroadcast(parser.myId(), myPort, parser.hosts(), Main::printDeliver);
+        System.out.print("Ready to (fifo) broadcast messages.\n");
+
         System.out.println("Broadcasting and delivering messages...\n");
 
-        // Set up PerfectLink
-        Main.pLink = new PerfectLink(parser.myId(), myPort, parser.hosts(), Main::printDeliver);
-
-        // Start the timer
-        Main.timeInit = System.currentTimeMillis();
-        
-        // If the process is not the receiver, broadcast messages
-        if (parser.myId() != receiverId) {
-            // Broadcast messages
-            for (int i = 1; i <= numMessages; i++) {
-                try {
-                    Main.writer.write("b " + i + "\n");
-                } catch (IOException e) {
-                    System.out.println("Broadcasting: Error writing to output file.\n");
-                    System.exit(1);
-                }
-
-                // Create payload.
-                // Empty since the seq num is in the message id.
-                var payload = new byte[0];
-
-                Main.pLink.send(
-                        new PayloadMessageImpl(
-                                payload,
-                                i,
-                                parser.myId(),
-                                receiverId)
-                );
+        for (int  msgId= 1; msgId <= numMessages; msgId++) {
+            try {
+                Main.writer.write("b " + msgId + "\n");
+            } catch (IOException e) {
+                System.out.println("Broadcasting: Error writing to output file.\n");
+                System.exit(1);
             }
-            System.out.println("Broadcast done, waiting for the delivery.\n");
+
+            // Create payload.
+            // Empty since the seq num is in the message id.
+            var payload = new byte[0];
+
+            Main.fifoBroadcast.broadcast(
+                    msgId,
+                    payload,
+                    parser.myId()
+            );
         }
+        System.out.println("Broadcast done, waiting for the delivery.\n");
 
         // After a process finishes broadcasting,
         // it waits forever for the delivery of messages.

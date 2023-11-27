@@ -6,7 +6,7 @@ import cs451.message.Message;
  * Interface for the abstraction of a link (used to represent the network components of the
  * distributed system).
  */
-interface Link {
+public interface Link {
 
     /**
      * Send a message.
