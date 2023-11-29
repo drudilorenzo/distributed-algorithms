@@ -11,7 +11,7 @@ public interface Broadcast {
         * @param msgId:   the id of the message.
         * @param payload: the payload of the message.
         */
-        void broadcast(int msgId, byte[] payload, final int senderId);
+        void broadcast(int msgId, byte[] payload);
 
         /**
          * Close the broadcast.

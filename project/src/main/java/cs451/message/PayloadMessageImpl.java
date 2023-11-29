@@ -5,7 +5,7 @@ package cs451.message;
  */
 public class PayloadMessageImpl implements Message {
 
-    public static final int HEADER_SIZE = 9; // size in byte of the message header without the payload
+    public static final int HEADER_SIZE = 8; // size in byte of the message header without the payload
 
     private final int id;               // id of the message
     private final byte senderId;        // id of the sender (max value: 128)
@@ -29,21 +29,6 @@ public class PayloadMessageImpl implements Message {
         this.originalSenderId = this.senderId;
     }
 
-    /**
-     * Constructor of {@link PayloadMessageImpl}.
-     *
-     * @param payload:          the payload of the message.
-     * @param id:               the id of the message.
-     * @param senderId:         the id of the sender.
-     * @param receiverId:       the id of the receiver.
-     * @param originalSenderId: the id of the original sender.
-     */
-    public PayloadMessageImpl(final byte[] payload, final int id,
-            final int senderId, final int receiverId, final int originalSenderId) {
-        this(payload, id, senderId, receiverId);
-        this.originalSenderId = (byte)((originalSenderId - 1) & 0xFF);
-    }
-
     @Override
     public int getId() {
         return this.id;
@@ -61,11 +46,6 @@ public class PayloadMessageImpl implements Message {
     @Override
     public int getLength() {
         return PayloadMessageImpl.HEADER_SIZE + this.payload.length;
-    }
-
-    @Override
-    public int getOriginalSenderId() {
-        return this.originalSenderId + 1;
     }
 
     @Override
@@ -88,8 +68,6 @@ public class PayloadMessageImpl implements Message {
         msgToByte[7] = (byte)(this.payload.length & 0xFF);
         // n bytes for the payload
         System.arraycopy(this.payload, 0, msgToByte, PayloadMessageImpl.HEADER_SIZE, this.payload.length);
-        // 1 byte for the original sender id
-        msgToByte[8] = this.originalSenderId;
         return msgToByte;
     }
 

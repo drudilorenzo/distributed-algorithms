@@ -54,6 +54,13 @@ public interface Packet {
     boolean canContainMessage(int messageLength) ;
 
     /**
+     * Get the original sender id of the packet.
+     *
+     * @return The original sender id of the packet.
+     */
+    int getOriginalSenderId();
+
+    /**
      * Get the (byte) length of the packet.
      *
      * @return The length of the packet.

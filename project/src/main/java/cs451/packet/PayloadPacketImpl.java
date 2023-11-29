@@ -25,12 +25,13 @@ public class PayloadPacketImpl implements Packet {
      * Header + payload.
      * Every packet, in the current implementation, can contain at most 8 messages (9 bytes each).
      */
-    public static final int MAX_PAYLOAD_SIZE = 114;
-    private static final int MAX_NUM_MESSAGES = 8; // maximum number of messages in a packet
+    public static final int MAX_PAYLOAD_SIZE = 106;
+    public static final int MAX_NUM_MESSAGES = 8; // maximum number of messages in a packet
 
     private int length;
     private int senderId;
     private int receiverId;
+    private int originalSenderId;
     private final int id;
     private final AtomicBoolean canTransmit;
     private final List<byte[]> messagesInBytes;
@@ -40,6 +41,7 @@ public class PayloadPacketImpl implements Packet {
         // The sender id and the receiver id are not set until the first message is added.
         this.senderId = -1;
         this.receiverId = -1;
+
         this.length = PayloadPacketImpl.PAYLOAD_HEADER_SIZE;
         this.canTransmit = new AtomicBoolean(false);
         this.messagesInBytes = new ArrayList<>();

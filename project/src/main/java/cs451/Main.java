@@ -45,7 +45,7 @@ public class Main {
         System.out.println("Immediately stopping network packet processing.");
 
         //close all connections
-        Main.fifoBroadcast.close();
+        //Main.fifoBroadcast.close();
 
         // write/flush output file
         System.out.println("Writing output.");
@@ -132,7 +132,10 @@ public class Main {
 
         // Initialize the fifo broadcast abstraction
         System.out.println("Initializing fifo broadcast abstraction.\n");
+        var t1 = System.currentTimeMillis();
         Main.fifoBroadcast = new FIFOBroadcast(parser.myId(), myPort, parser.hosts(), Main::printDeliver);
+        var t2 = System.currentTimeMillis();
+        System.out.println("FIFO broadcast abstraction initialized in " + (t2 - t1) + " ms.\n");
         System.out.print("Ready to (fifo) broadcast messages.\n");
 
         System.out.println("Broadcasting and delivering messages...\n");
@@ -151,8 +154,7 @@ public class Main {
 
             Main.fifoBroadcast.broadcast(
                     msgId,
-                    payload,
-                    parser.myId()
+                    payload
             );
         }
         System.out.println("Broadcast done, waiting for the delivery.\n");

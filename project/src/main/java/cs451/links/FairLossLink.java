@@ -24,7 +24,7 @@ import java.util.function.Consumer;
  */
 public class FairLossLink implements Link {
 
-    private final static int NUM_THREADS = 3;
+    private final static int NUM_THREADS = 2;
     private final static int MAX_CAPACITY = 8;            // maximum send buffer capacity.
     private final static int SOCKET_TERMINATION_TIME = 50; // time to wait for the socket to close.
 
@@ -52,8 +52,8 @@ public class FairLossLink implements Link {
             Thread.currentThread().interrupt();
             System.exit(1);
         }
-        this.deliverCallback = deliverCallback;
         this.hosts = new Host[hosts.length];
+        this.deliverCallback = deliverCallback;
         this.sendBuffer = new LinkedBlockingQueue<>(FairLossLink.MAX_CAPACITY);
         Host h;
         for (int i = 0; i < hosts.length; i++) {
@@ -63,21 +63,12 @@ public class FairLossLink implements Link {
         this.executor = Executors.newFixedThreadPool(FairLossLink.NUM_THREADS);
         executor.execute(this::deliver);    // one thread to deliver packets.
         executor.execute(this::sendBuffer); // one thread to send packets.
-        executor.execute(this::checkDeadlock);
     }
 
     @Override
-    public void send(final Message message) {
-        throw new UnsupportedOperationException("FairLossLink sends packets.");
-    }
-
-    /**
-     * Send a packet.
-     * 
-     * @param packet: the packet to send.
-     */
     public void send(final Packet packet) {
         try {
+            System.out.println("PL: putting packet in send buffer");
             this.sendBuffer.put(packet);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -105,14 +96,18 @@ public class FairLossLink implements Link {
             buf = new byte[PayloadPacketImpl.MAX_PAYLOAD_SIZE];
             datagram = new DatagramPacket(buf, buf.length);
             try {
+                System.out.println("FL: Waiting to receive packet");
                 this.socket.receive(datagram);
                 this.time_receive = System.currentTimeMillis();
+                System.out.println("FL: Received packet");
             } catch (IOException e) {
                 Thread.currentThread().interrupt();
                 return;
             }
             packet = PacketUtils.deserialize(datagram.getData());
+            System.out.println("FL: Received packet: " + packet.getId() + " from " + packet.getSenderId());
             this.deliverCallback.accept(packet);
+            System.out.println("FL: deliver callback finished");
         }
     }
 
@@ -132,37 +127,15 @@ public class FairLossLink implements Link {
                         InetAddress.getByName(receiver.getIp()),
                         receiver.getPort()
                 );
+                System.out.println("FL: Sending packet: " + packet.getId() + " to " + receiverId + " from " + packet.getSenderId());
                 this.socket.send(datagram);
                 System.currentTimeMillis();
                 packet.setTransmit(true);
+                System.out.println("FL: Sent packet: " + packet.getId() + " to " + receiverId + " from " + packet.getSenderId());
             } catch (IOException | InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return;
             } 
-        }
-    }
-
-    private void checkDeadlock() {
-        long prev_receive = -1;
-        long prev_send = -1;
-        while (!Thread.currentThread().isInterrupted()) {
-            if (prev_receive == -1) {
-                prev_receive = this.time_receive;
-            } else if (this.time_receive - prev_receive > 2000) {
-                System.out.println("DEADLOCK RECEIVE");
-                System.exit(1);
-            } else {
-                prev_receive = this.time_receive;
-            }
-
-            if (prev_send == -1) {
-                prev_send = this.time_send;
-            } else if (this.time_send - prev_send > 2000) {
-                System.out.println("DEADLOCK SEND");
-                System.exit(1);
-            } else {
-                prev_send = this.time_send;
-            }
         }
     }
 

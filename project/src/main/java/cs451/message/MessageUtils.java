@@ -12,8 +12,7 @@ public class MessageUtils {
         final int payloadLength = (0xFF & data[4]) << 24 | (0xFF & data[5]) << 16 | (0xFF & data[6]) << 8 | (0xFF & data[7]);
         final var payload = new byte[payloadLength];
         System.arraycopy(data, PayloadMessageImpl.HEADER_SIZE, payload, 0, payloadLength);
-        final var originalSenderId = data[8] + 1;
-        return new PayloadMessageImpl(payload, messageId, senderId, receiverId, originalSenderId);
+        return new PayloadMessageImpl(payload, messageId, senderId, receiverId);
    }
 
 }

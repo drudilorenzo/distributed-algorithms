@@ -1,6 +1,6 @@
 package cs451.links;
 
-import cs451.message.Message;
+import cs451.packet.Packet;
 
 /**
  * Interface for the abstraction of a link (used to represent the network components of the
@@ -9,11 +9,11 @@ import cs451.message.Message;
 public interface Link {
 
     /**
-     * Send a message.
+     * Send a packet.
      *
-     * @param message: the message to send.
+     * @param packet: the packet to send.
      */
-    void send(Message message);
+    void send(Packet packet);
 
     /**
      * Close the link.

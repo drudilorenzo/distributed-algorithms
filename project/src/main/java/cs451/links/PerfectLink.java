@@ -47,8 +47,8 @@ public class PerfectLink implements Link {
     }
 
     @Override
-    public void send(final Message message) {
-        this.sLink.send(message);
+    public void send(final Packet packet) {
+        this.sLink.send(packet);
     }
 
     @Override
@@ -60,12 +60,7 @@ public class PerfectLink implements Link {
      * Deliver a packet if it hasn't been delivered yet.
      */
     private void deliver(final Packet packet) {
-        final var senderId = packet.getSenderId();
-        final var packetId = packet.getId();
-        if (!this.delivered[senderId - 1].contains(packetId)) {
-            this.delivered[senderId - 1].add(packetId);
-            this.deliverCallback.accept(packet);
-        }
+        this.deliverCallback.accept(packet);
     }
 
 }

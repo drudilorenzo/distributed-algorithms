@@ -53,6 +53,11 @@ public class AckPacketImpl implements Packet {
     }
 
     @Override
+    public int getOriginalSenderId() {
+        throw new UnsupportedOperationException("No getOriginalSenderId for ACK packets.");
+    }
+
+    @Override
     public void addMessage(Message message) {
         throw new UnsupportedOperationException("No addMessage for ACK packets.");
     }
