@@ -2,6 +2,7 @@ package cs451;
 
 import cs451.broadcast.FIFOBroadcast;
 
+import java.io.BufferedWriter;
 import java.io.File;
 import java.util.Scanner;
 import java.io.FileWriter;
@@ -28,7 +29,7 @@ public class Main {
 
     // To be able to use them they should be static.
     private static FIFOBroadcast fifoBroadcast; // fifo broadcast abstraction
-    private static FileWriter writer;           // file writer to write to the output file
+    private static BufferedWriter writer;           // file writer to write to the output file
 
     private static void printDeliver(final int seqNum, final int senderId) {
         try {
@@ -40,12 +41,12 @@ public class Main {
     }
 
     private static void handleSignal() {
-
         //immediately stop network packet processing
         System.out.println("Immediately stopping network packet processing.");
 
+
         //close all connections
-        //Main.fifoBroadcast.close();
+        Main.fifoBroadcast.close();
 
         // write/flush output file
         System.out.println("Writing output.");
@@ -124,18 +125,16 @@ public class Main {
         }
 
         try {
-            writer = new FileWriter(parser.output());
+            var fWriter = new FileWriter(parser.output());
+            Main.writer  = new BufferedWriter(fWriter);
         } catch (IOException e) {
             System.out.println("Error opening output file.");
             System.exit(1);
         }
 
         // Initialize the fifo broadcast abstraction
-        System.out.println("Initializing fifo broadcast abstraction.\n");
-        var t1 = System.currentTimeMillis();
         Main.fifoBroadcast = new FIFOBroadcast(parser.myId(), myPort, parser.hosts(), Main::printDeliver);
         var t2 = System.currentTimeMillis();
-        System.out.println("FIFO broadcast abstraction initialized in " + (t2 - t1) + " ms.\n");
         System.out.print("Ready to (fifo) broadcast messages.\n");
 
         System.out.println("Broadcasting and delivering messages...\n");

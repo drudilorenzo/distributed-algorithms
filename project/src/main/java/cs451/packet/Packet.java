@@ -33,6 +33,27 @@ public interface Packet {
     int getReceiverId();
 
     /**
+     * Get the (byte) length of the packet.
+     *
+     * @return The length of the packet.
+     */
+    int getLength();
+
+    /**
+     * Get the original sender id of the packet.
+     *
+     * @return The original sender id of the packet.
+     */
+    int getOriginalSenderId();
+
+    /**
+     * Get the messages of the packet.
+     *
+     * @return The messages of the packet.
+     */
+    List<Message> getMessages();
+
+    /**
      * Return true if the packet is an ack packet, false otherwise.
      *
      * @return True if the packet is an ack packet, false otherwise.
@@ -52,27 +73,6 @@ public interface Packet {
      * @return True if the packet is full, false otherwise.
      */
     boolean canContainMessage(int messageLength) ;
-
-    /**
-     * Get the original sender id of the packet.
-     *
-     * @return The original sender id of the packet.
-     */
-    int getOriginalSenderId();
-
-    /**
-     * Get the (byte) length of the packet.
-     *
-     * @return The length of the packet.
-     */
-    int getLength();
-
-    /**
-     * Get the messages of the packet.
-     *
-     * @return The messages of the packet.
-     */
-    List<Message> getMessages();
 
     /**
      * Check if the packet can be transmitted.

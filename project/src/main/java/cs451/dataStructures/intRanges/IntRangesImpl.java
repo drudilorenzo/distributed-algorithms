@@ -48,12 +48,14 @@ public class IntRangesImpl implements IntRanges {
                 } else if (end < current.getStart()) {
                     newRange = new IntRange(lowerBound, end, current);
                 }
-                if (prev != null) {
-                    prev.setNext(newRange);
-                } else {
-                    this.head = newRange;
+                if (newRange != null) {
+                    if (prev != null) {
+                        prev.setNext(newRange);
+                    } else {
+                        this.head = newRange;
+                    }
+                    return; // range added, we can return
                 }
-                return; // range added, we can return
             } else {
                 // if we have found the lower bound, we don't have to update
                 // the previous range. That is because the new range will be
@@ -102,6 +104,17 @@ public class IntRangesImpl implements IntRanges {
         this.head = this.head.getNext();
     }
 
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        IntRange current = this.head;
+        while (current != null) {
+            sb.append(current.getStart()).append("-").append(current.getEnd()).append(" ");
+            current = current.getNext();
+        }
+        return sb.toString();
+    }
+
     private static class IntRange {
 
         private final Pair p;
@@ -135,6 +148,7 @@ public class IntRangesImpl implements IntRanges {
         public void setNext(final IntRange next) {
             this.next = next;
         }
+
     }
 
 }

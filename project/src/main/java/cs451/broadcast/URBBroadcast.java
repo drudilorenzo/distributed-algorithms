@@ -10,13 +10,11 @@ import cs451.dataStructures.pair.Pair;
 import cs451.message.PayloadMessageImpl;
 import cs451.dataStructures.pair.PairImpl;
 
-import java.util.List;
-import java.util.ArrayList;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-import java.util.NoSuchElementException;
 
 /**
  * Implementation of Uniform Reliable Broadcast based on {@link Broadcast} following
@@ -32,11 +30,11 @@ import java.util.NoSuchElementException;
 public class URBBroadcast implements Broadcast {
 
     // num of packets handled by the algorithm concurrently.
-    private static final int NUM_PACKETS = 8;
-    private static final int NUM_THREADS = 3;
+    private static final int NUM_PACKETS = 10;
+    private static final int NUM_THREADS = 2;
     private static final int NUM_ATTEMPTS = 3;
-    private static final int DELTA_BOUND = 200;
     private static final int PACKET_LOWER_BOUND = 3;
+    private static final int DELTA_BOUND = NUM_PACKETS;
     private final static int SOCKET_TERMINATION_TIME = 50;
 
     // messages that have been beb-delivered but not yet urb-delivered.
@@ -44,16 +42,17 @@ public class URBBroadcast implements Broadcast {
     private final BlockingQueue<Pair>[] pending;
 
     // Packet sent - packet delivered
-    private final AtomicInteger delta = new AtomicInteger(0);
     private final int myId;
+    private final AtomicInteger delta;
+    private final TreeSet<Integer>[] windows; // next sequence number for each sender.
     private final Link link;
     private final int numHosts;
     private int packetIdCounter; // id of the next packet to send
     private final ExecutorService executor;
     private final Consumer<Packet> deliverCallback;
-    private final BlockingQueue<Packet> deliverBuffer;        // buffer used to send messages to beb
-    private final BlockingQueue<Packet> packetSendBuffer;        // buffer used to send messages to beb
-    private final ConcurrentSkipListSet<Integer>[] delivered;
+    private final BlockingQueue<Packet> deliverBuffer;           // buffer used to send messages to beb
+    private final ConcurrentSkipListSet<Pair>[] delivered;       // beb delivered
+    private final ConcurrentSkipListSet<Integer>[] deliveredURB;    // urb delivered
     private final BlockingQueue<BroadcastMessageDto> sendBuffer; // buffer used to pack messages into packets
 
     /**
@@ -69,25 +68,37 @@ public class URBBroadcast implements Broadcast {
         this.packetIdCounter = 0;
         this.numHosts = hosts.size();
         this.deliverCallback = deliverCallback;
+        this.delta = new AtomicInteger(0);
+
+        this.windows = new TreeSet[this.numHosts];
+        for (var i = 0; i < this.numHosts; i++) {
+            this.windows[i] = new TreeSet<>();
+            for (var j = 1; j <= URBBroadcast.NUM_PACKETS; j++) {
+                this.windows[i].add(j);
+            }
+        }
 
         this.delivered = new ConcurrentSkipListSet[hosts.size()];
         for (var i = 0; i < hosts.size(); i++) {
             this.delivered[i] = new ConcurrentSkipListSet<>();
         }
 
+        this.deliveredURB = new ConcurrentSkipListSet[hosts.size()];
+        for (var i = 0; i < hosts.size(); i++) {
+            this.deliveredURB[i] = new ConcurrentSkipListSet<>();
+        }
+
         this.pending = new BlockingQueue[hosts.size()];
         for (var i = 0; i < hosts.size(); i++) {
-            this.pending[i] = new LinkedBlockingQueue<>(URBBroadcast.NUM_PACKETS);
+            this.pending[i] = new LinkedBlockingQueue<>(Integer.MAX_VALUE);
         }
 
         this.sendBuffer = new LinkedBlockingQueue<>(URBBroadcast.NUM_PACKETS);
-        this.deliverBuffer = new LinkedBlockingQueue<>(URBBroadcast.NUM_PACKETS);
-        this.packetSendBuffer = new LinkedBlockingQueue<>(URBBroadcast.NUM_PACKETS);
+        this.deliverBuffer = new LinkedBlockingQueue<>(Integer.MAX_VALUE);
         this.executor = Executors.newFixedThreadPool(URBBroadcast.NUM_THREADS);
-        this.executor.execute(this::handleSendBuffer);
         this.executor.execute(this::createPackets);
         this.executor.execute(this::handleDeliverBuffer);
-        this.link = new PerfectLink(myId, port, hosts, this::deliver);
+        this.link = new PerfectLink(myId, port, hosts.toArray(new Host[hosts.size()]), this::deliver);
     }
 
     @Override
@@ -114,9 +125,7 @@ public class URBBroadcast implements Broadcast {
 
     private void deliver(final Packet packet) {
         try {
-            System.out.println("URB(D): Putting packet in deliver buffer");
             this.deliverBuffer.put(packet);
-            System.out.println("URB(D): Packet put in deliver buffer");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
@@ -125,67 +134,70 @@ public class URBBroadcast implements Broadcast {
     private void handleDeliverBuffer() {
         while (!Thread.currentThread().isInterrupted()) {
             try {
-                System.out.println("URB(HDB): Current deliver buffer size: " + this.deliverBuffer.size());
                 Packet packet = this.deliverBuffer.take();
-                if (!this.delivered[packet.getSenderId() - 1].contains(packet.getId())
-                        && !(this.pending[packet.getSenderId() - 1].size() == URBBroadcast.NUM_PACKETS
-                        && this.pending[packet.getSenderId() - 1].stream().noneMatch(pair -> pair.getLeft() == packet.getId()))
+
+                this.link.send(packet.toAck());
+
+                if (!this.delivered[packet.getOriginalSenderId() - 1].contains(new PairImpl(packet.getId(), packet.getSenderId()))
+                    && !this.deliveredURB[packet.getOriginalSenderId() - 1].contains(packet.getId())
                 ) {
-                    System.out.println("UBR(HDB): Packet id: " + packet.getId() + " sender id: " + packet.getSenderId() + " receiver id: " + packet.getReceiverId());
-                    if (this.pending[packet.getSenderId() - 1].stream().noneMatch(pair -> pair.getLeft() == packet.getId())) {
+                    if (this.pending[packet.getOriginalSenderId() - 1].stream().noneMatch(pair -> pair.getLeft() == packet.getId())) {
                         try {
-                            System.out.println("URB: first time seen");
-                            this.pending[packet.getSenderId() - 1].put(new PairImpl(packet.getId(), 0));
-                            this.packetSendBuffer.put(packet);
-                            System.out.println("URB: Sender id: " + packet.getSenderId() + " queue dim: " + this.pending[packet.getSenderId() - 1].size());
+                            this.pending[packet.getOriginalSenderId() - 1].put(new PairImpl(packet.getId(), 1));
+
+                            // broadcast the packet to all the hosts
+                            var messagesList = packet.getMessages();
+                            for (int hostId = 1; hostId <= this.numHosts; hostId++) {
+                                if (hostId != this.myId && hostId != packet.getSenderId() && hostId != packet.getOriginalSenderId()) {
+                                    var bPacket = new PayloadPacketImpl(packet.getId(), this.myId, hostId, packet.getOriginalSenderId());
+                                    for (int i = 0; i < messagesList.size(); i++) {
+                                        var message = messagesList.get(i);
+                                        bPacket.addMessage(new PayloadMessageImpl(message.getPayload(), message.getId(), packet.getOriginalSenderId(), hostId));
+                                    }
+                                    this.link.send(bPacket);
+                                }
+                            }
                         } catch (InterruptedException e) {
                             Thread.currentThread().interrupt();
                             return;
                         }
                     }
-                    System.out.println("URB(HDB): Incrementing ack received");
                     // increment number of ack received
-                    this.pending[packet.getSenderId() - 1] = this.pending[packet.getSenderId() - 1].stream()
-                            .map(pair -> pair.getLeft() == packet.getId() ? new PairImpl(pair.getLeft(), pair.getRight() + 1) : pair)
-                            .collect(Collectors.toCollection(() -> new LinkedBlockingQueue<>(URBBroadcast.NUM_PACKETS)));
 
-                    try {
-                        System.out.println("URB(HDB): Number of ack received: " + this.pending[packet.getSenderId() - 1].stream()
-                                .filter(pair -> pair.getLeft() == packet.getId()).findFirst().get().getRight());
-                    } catch (NoSuchElementException e) {
-                        Thread.currentThread().interrupt();
-                        System.exit(1);
+                    Iterator it = this.pending[packet.getOriginalSenderId() - 1].iterator();
+                    while (it.hasNext()) {
+                        Pair pair = (Pair) it.next();
+                        if (pair.getLeft() == packet.getId()) {
+                            pair.setRight(pair.getRight() + 1);
+                            break;
+                        }
                     }
 
+                    this.delivered[packet.getOriginalSenderId() - 1].add(new PairImpl(packet.getId(), packet.getSenderId()));
                     // check if message can be urb delivered
                     if (this.canDeliver(packet)) {
-                        System.out.println("URB(HDB): FIFO ready");
-                        this.delivered[packet.getSenderId() - 1].add(packet.getId());
-                        this.pending[packet.getSenderId() - 1].removeIf(pair -> pair.getLeft() == packet.getId());
+                        this.deliveredURB[packet.getOriginalSenderId() - 1].add(packet.getId());
+                        this.pending[packet.getOriginalSenderId() - 1].removeIf(pair -> pair.getLeft() == packet.getId());
                         this.deliverCallback.accept(packet);
-                        this.delta.decrementAndGet();
-                        System.out.println("URB(HDB): Sender id: " + packet.getSenderId() + " queue dim: " + this.pending[packet.getSenderId() - 1].size());
                     }
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return;
             }
-            System.out.println("URB(HDB): Next iteration");
         }
     }
 
     private boolean canDeliver(final Packet packet) {
         // check if there is a pair with key message id
-        return this.pending[packet.getSenderId() - 1].stream().anyMatch(pair -> pair.getLeft() == packet.getId())
-            && this.pending[packet.getSenderId() - 1].stream().filter(pair -> pair.getLeft() == packet.getId())
-                .findFirst().get().getRight() > ((this.numHosts-1) / 2);
+        return this.pending[packet.getOriginalSenderId() - 1].stream().anyMatch(pair -> pair.getLeft() == packet.getId())
+            && this.pending[packet.getOriginalSenderId() - 1].stream().filter(pair -> pair.getLeft() == packet.getId())
+                .findFirst().get().getRight() > (this.numHosts / 2);
     }
 
     /*
      * The packets are created only one time.
      */
-
     private void createPackets() {
 
         // Continuously try to create packets.
@@ -198,7 +210,7 @@ public class URBBroadcast implements Broadcast {
 
         while (!Thread.currentThread().isInterrupted()) {
 
-            if (this.delta.get() < URBBroadcast.DELTA_BOUND) {
+            if (true) {
                 // Peek without removing from the queue.
                 message = this.sendBuffer.peek();
                 if (message != null) {
@@ -208,9 +220,14 @@ public class URBBroadcast implements Broadcast {
                     this.packetIdCounter++;
                     id = this.packetIdCounter;
                     messages = new ArrayList<>();
+                    var payloadLength = message == null || message.getPayload() == null ? 0 : message.getPayload().length;
                     while (numAttempts < URBBroadcast.NUM_ATTEMPTS
-                            && this.canContainMessage(PayloadMessageImpl.HEADER_SIZE + message.getPayload().length, messages.size())
+                            && this.canContainMessage(PayloadMessageImpl.HEADER_SIZE + payloadLength, messages.size())
                     ) {
+                        if (message == null) {
+                            numAttempts++;
+                            continue;
+                        }
                         try {
                             var messageToAdd = this.sendBuffer.take();
                             messages.add(messageToAdd);
@@ -219,55 +236,35 @@ public class URBBroadcast implements Broadcast {
                             return;
                         }
                         message = this.sendBuffer.peek();
+                        payloadLength = message == null || message.getPayload() == null ? 0 : message.getPayload().length;
                         // If there are yet at least PACKET_LOWER_BOUND messages in the packet,
                         // no need to wait for more messages.
                         if (message == null && messages.size() >= URBBroadcast.PACKET_LOWER_BOUND) {
                             break;
                         }
-                        // Else wait for more messages.
-                        while (message == null && numAttempts < URBBroadcast.NUM_ATTEMPTS) {
-                            numAttempts++;
-                        }
+                        numAttempts++;
                     }
+
+                    this.delta.incrementAndGet();
 
                     try {
                         // doing that I can ensure that the packets sent to the hosts are the same
-                        System.out.println("URB(CP):Creating packet id: " + id);
                         for (int hostId = 1; hostId <= this.numHosts; hostId++) {
                             if (hostId != this.myId) {
-                                packet = new PayloadPacketImpl(id, this.myId);
+                                packet = new PayloadPacketImpl(id, this.myId, hostId, this.myId);
                                 for (int msg = 0; msg < messages.size(); msg++) {
                                     message = messages.get(msg);
                                     paylodMessage = new PayloadMessageImpl(message.getPayload(), message.getMsgId(), this.myId, hostId);
                                     packet.addMessage(paylodMessage);
                                 }
-                                System.out.println("URB(CP) Putting packet in packet send buffer");
-                                this.packetSendBuffer.put(packet);
-                                System.out.println("URB(CP): Packet put in packet send buffer");
+                                this.link.send(packet);
                             }
                         }
-                    } catch (InterruptedException e) {
+                    } catch (Exception e) {
                         Thread.currentThread().interrupt();
                         return;
                     }
                 }
-            }
-        }
-    }
-
-    private void handleSendBuffer() {
-        Packet packet;
-        while (!Thread.currentThread().isInterrupted()) {
-            try {
-                System.out.println("URB(HSB):Sending packet");
-                packet = this.packetSendBuffer.take();
-                System.out.println("URB(HSB):Sending received packet from: " + packet.getSenderId());
-                this.link.send(packet);
-                this.delta.incrementAndGet();
-                System.out.println("URB(HSB):Packet sent");
-            } catch (Exception e) {
-                Thread.currentThread().interrupt();
-                return;
             }
         }
     }

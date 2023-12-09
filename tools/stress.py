@@ -380,7 +380,7 @@ def main(parser_results, testConfig):
         st.continueStoppedProcesses()
 
         #input("Press `Enter` when all processes have finished processing messages.")
-        time.sleep(5)
+        time.sleep(10)
         
         unterminated = st.remainingUnterminatedProcesses()
         if unterminated is not None:

@@ -13,17 +13,20 @@ public class AckPacketImpl implements Packet {
     // - 4 bytes for the id of the packet.
     // - 1 byte for the senderId + isAck.
     // - 1 byte for the receiverId.
-    private static final int ACK_PACKET_SIZE = 6;
+    // - 1 byte for the originalSenderId.
+    private static final int ACK_PACKET_SIZE = 7;
 
     private final int id;
     private final int senderId;
     private final int receiverId;
+    private final int originalSenderId;
     private final AtomicBoolean canTransmit;
 
-    public AckPacketImpl(final int id, final int senderId, final int receiverId) {
+    public AckPacketImpl(final int id, final int senderId, final int receiverId, final int originalSenderId) {
         this.id = id;
         this.senderId = senderId;
         this.receiverId = receiverId;
+        this.originalSenderId = originalSenderId;
         this.canTransmit = new AtomicBoolean(false);
     }
 
@@ -43,18 +46,23 @@ public class AckPacketImpl implements Packet {
     }
 
     @Override
-    public boolean isAck() {
-        return true;
-    }
-
-    @Override
     public int getLength() {
         return AckPacketImpl.ACK_PACKET_SIZE;
     }
 
     @Override
     public int getOriginalSenderId() {
-        throw new UnsupportedOperationException("No getOriginalSenderId for ACK packets.");
+        return this.originalSenderId;
+    }
+
+    @Override
+    public List<Message> getMessages() {
+        throw new UnsupportedOperationException("No getMessages for ACK packets.");
+    }
+
+    @Override
+    public boolean isAck() {
+        return true;
     }
 
     @Override
@@ -65,11 +73,6 @@ public class AckPacketImpl implements Packet {
     @Override
     public boolean canContainMessage(int messageLength) {
         throw new UnsupportedOperationException("No canContainMessage for ACK packets.");
-    }
-
-    @Override
-    public List<Message> getMessages() {
-        throw new UnsupportedOperationException("No getMessages for ACK packets.");
     }
 
     @Override
@@ -100,6 +103,8 @@ public class AckPacketImpl implements Packet {
         buffer[4] |= (byte)(1 << 7);
         // 6th byte for the senderId.
         buffer[5] = (byte)((senderId - 1) & 0xFF);
+        // 7th byte for the originalSenderId.
+        buffer[6] = (byte)((originalSenderId - 1) & 0xFF);
         return buffer;
     }
 
@@ -117,7 +122,8 @@ public class AckPacketImpl implements Packet {
         return this.getId() == ((Packet)obj).getId()
                 && this.getSenderId() == ((Packet)obj).getSenderId()
                 && this.getReceiverId() == ((Packet)obj).getReceiverId()
-                && this.isAck() == ((Packet)obj).isAck();
+                && this.isAck() == ((Packet)obj).isAck()
+                && this.getOriginalSenderId() == ((Packet)obj).getOriginalSenderId();
     }
 
     @Override
@@ -125,7 +131,8 @@ public class AckPacketImpl implements Packet {
         return Integer.hashCode(this.id)
                 + Integer.hashCode(this.senderId)
                 + Integer.hashCode(this.receiverId)
-                + Boolean.hashCode(this.isAck());
+                + Boolean.hashCode(this.isAck())
+                + Integer.hashCode(this.originalSenderId) * 31;
     }
 
 }

@@ -19,20 +19,20 @@ public class PayloadPacketImpl implements Packet {
      * - 1 byte for the senderId.
      * - 4 bytes for the number of messages.
      */
-    public static final int PAYLOAD_HEADER_SIZE = 10;
+    public static final int PAYLOAD_HEADER_SIZE = 11;
     /**
      * Maximum size of a packet in byte.
      * Header + payload.
      * Every packet, in the current implementation, can contain at most 8 messages (9 bytes each).
      */
-    public static final int MAX_PAYLOAD_SIZE = 106;
-    public static final int MAX_NUM_MESSAGES = 8; // maximum number of messages in a packet
+    public static final int MAX_PAYLOAD_SIZE = 107;
+    public static final int MAX_NUM_MESSAGES = 8;   // maximum number of messages in a packet
 
+    private final int id;
     private int length;
     private int senderId;
     private int receiverId;
     private int originalSenderId;
-    private final int id;
     private final AtomicBoolean canTransmit;
     private final List<byte[]> messagesInBytes;
 
@@ -41,7 +41,7 @@ public class PayloadPacketImpl implements Packet {
         // The sender id and the receiver id are not set until the first message is added.
         this.senderId = -1;
         this.receiverId = -1;
-
+        this.originalSenderId = -1;
         this.length = PayloadPacketImpl.PAYLOAD_HEADER_SIZE;
         this.canTransmit = new AtomicBoolean(false);
         this.messagesInBytes = new ArrayList<>();
@@ -55,6 +55,7 @@ public class PayloadPacketImpl implements Packet {
     public PayloadPacketImpl(final int id, final int senderId) {
         this(id);
         this.senderId = senderId;
+        this.originalSenderId = senderId;
     }
 
     /**
@@ -63,9 +64,10 @@ public class PayloadPacketImpl implements Packet {
      * @param senderId:   the id of the sender.
      * @param receiverId: the id of the receiver.
      */
-    public PayloadPacketImpl(final int id, final int senderId, final int receiverId) {
+    public PayloadPacketImpl(final int id, final int senderId, final int receiverId, final int originalSenderId) {
         this(id, senderId);
         this.receiverId = receiverId;
+        this.originalSenderId = originalSenderId;
     }
 
     @Override
@@ -92,6 +94,31 @@ public class PayloadPacketImpl implements Packet {
     }
 
     @Override
+    public int getLength() {
+        return this.length;
+    }
+
+    @Override
+    public int getOriginalSenderId() {
+        if (this.originalSenderId == -1) {
+            throw new UnsupportedOperationException("Original sender id not set.");
+        }
+        return this.originalSenderId;
+    }
+
+    @Override
+    public List<Message> getMessages() {
+        // Need to convert the messages in bytes to messages.
+        List<Message> convertedMessages = new ArrayList<>();
+        if (!this.messagesInBytes.isEmpty()) {
+            for (byte[] messageInBytes : this.messagesInBytes) {
+                convertedMessages.add(MessageUtils.deserialize(messageInBytes, this.originalSenderId, this.receiverId));
+            }
+        }
+        return convertedMessages;
+    }
+
+    @Override
     public boolean isAck() {
         return false;
     }
@@ -104,8 +131,10 @@ public class PayloadPacketImpl implements Packet {
         if (this.senderId == -1) {
             this.senderId = message.getSenderId();
         }
-
-        // 4 bytes for the length of the message.
+        if (this.originalSenderId == -1) {
+            this.originalSenderId = message.getSenderId();
+        }
+        // add 4 bytes for the length of the message.
         this.length += Packet.INT_SIZE + message.getLength();
         this.messagesInBytes.add(message.serialize());
     }
@@ -116,22 +145,6 @@ public class PayloadPacketImpl implements Packet {
             && (this.messagesInBytes.size() + 1 <= PayloadPacketImpl.MAX_NUM_MESSAGES);
     }
 
-    public int getLength() {
-        return this.length;
-    }
-
-
-    @Override
-    public List<Message> getMessages() {
-        // Need to convert the messages in bytes to messages.
-        List<Message> convertedMessages = new ArrayList<>();
-        if (!this.messagesInBytes.isEmpty()) {
-            for (byte[] messageInBytes : this.messagesInBytes) {
-                convertedMessages.add(MessageUtils.deserialize(messageInBytes, senderId, receiverId));
-            }
-        }
-        return convertedMessages;
-    }
 
     @Override
     public boolean canTransmit() {
@@ -145,7 +158,7 @@ public class PayloadPacketImpl implements Packet {
 
     @Override
     public Packet toAck() {
-        return new AckPacketImpl(this.id, this.receiverId, this.senderId);
+        return new AckPacketImpl(this.id, this.receiverId, this.senderId, this.originalSenderId);
     }
 
     @Override
@@ -158,11 +171,12 @@ public class PayloadPacketImpl implements Packet {
         buffer[4] = (byte)((this.receiverId - 1) & 0xFF);
         buffer[4] |= (byte)(0);
         buffer[5] = (byte)((this.senderId - 1) & 0xFF);
+        buffer[6] = (byte)((this.originalSenderId - 1) & 0xFF);
         final var numMessages = this.messagesInBytes.size();
-        buffer[6] = (byte)((numMessages >> 24) & 0xFF);
-        buffer[7] = (byte)((numMessages >> 16) & 0xFF);
-        buffer[8] = (byte)((numMessages >> 8) & 0xFF);
-        buffer[9] = (byte)(numMessages & 0xFF);
+        buffer[7] = (byte)((numMessages >> 24) & 0xFF);
+        buffer[8] = (byte)((numMessages >> 16) & 0xFF);
+        buffer[9] = (byte)((numMessages >> 8) & 0xFF);
+        buffer[10] = (byte)(numMessages & 0xFF);
         var currentLength = PayloadPacketImpl.PAYLOAD_HEADER_SIZE;
         byte[] m;
         int messageLength;
@@ -192,9 +206,10 @@ public class PayloadPacketImpl implements Packet {
             return false;
         }
         return this.getId() == ((Packet)obj).getId()
+                && this.isAck() == ((Packet)obj).isAck()
                 && this.getSenderId() == ((Packet)obj).getSenderId()
                 && this.getReceiverId() == ((Packet)obj).getReceiverId()
-                && this.isAck() == ((Packet)obj).isAck();
+                && this.getOriginalSenderId() == ((Packet)obj).getOriginalSenderId();
     }
 
     @Override
@@ -202,7 +217,8 @@ public class PayloadPacketImpl implements Packet {
         return Integer.hashCode(this.id)
                 + Integer.hashCode(this.senderId)
                 + Integer.hashCode(this.receiverId)
-                + Boolean.hashCode(this.isAck());
+                + Boolean.hashCode(this.isAck())
+                + Integer.hashCode(this.originalSenderId) * 31;
     }
 
 }

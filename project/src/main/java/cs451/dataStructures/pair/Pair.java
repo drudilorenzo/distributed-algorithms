@@ -21,16 +21,16 @@ public interface Pair {
 
     /**
      * Set the left value of the pair.
-     * 
-     * @param left: the new left value.
+     *
+     * @param left: the left value of the pair.
      */
     void setLeft(int left);
 
     /**
      * Set the right value of the pair.
-     * 
-     * @param right: the new right value.
-     */ 
+     *
+     * @param right: the right value of the pair.
+     */
     void setRight(int right);
 
 }

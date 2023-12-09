@@ -24,12 +24,12 @@ import java.util.function.Consumer;
  */
 public class FairLossLink implements Link {
 
-    private final static int NUM_THREADS = 2;
+    private final static int NUM_THREADS = 3;
     private final static int MAX_CAPACITY = 8;            // maximum send buffer capacity.
     private final static int SOCKET_TERMINATION_TIME = 50; // time to wait for the socket to close.
 
-    private long time_send;
-    private long time_receive;
+    private long count_send = System.currentTimeMillis();
+    private long count_recv = System.currentTimeMillis();
     private final Host[] hosts;
     private DatagramSocket socket;
     private final ExecutorService executor;
@@ -68,7 +68,6 @@ public class FairLossLink implements Link {
     @Override
     public void send(final Packet packet) {
         try {
-            System.out.println("PL: putting packet in send buffer");
             this.sendBuffer.put(packet);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -96,18 +95,14 @@ public class FairLossLink implements Link {
             buf = new byte[PayloadPacketImpl.MAX_PAYLOAD_SIZE];
             datagram = new DatagramPacket(buf, buf.length);
             try {
-                System.out.println("FL: Waiting to receive packet");
                 this.socket.receive(datagram);
-                this.time_receive = System.currentTimeMillis();
-                System.out.println("FL: Received packet");
+                this.count_recv = System.currentTimeMillis();
             } catch (IOException e) {
                 Thread.currentThread().interrupt();
                 return;
             }
             packet = PacketUtils.deserialize(datagram.getData());
-            System.out.println("FL: Received packet: " + packet.getId() + " from " + packet.getSenderId());
             this.deliverCallback.accept(packet);
-            System.out.println("FL: deliver callback finished");
         }
     }
 
@@ -127,11 +122,10 @@ public class FairLossLink implements Link {
                         InetAddress.getByName(receiver.getIp()),
                         receiver.getPort()
                 );
-                System.out.println("FL: Sending packet: " + packet.getId() + " to " + receiverId + " from " + packet.getSenderId());
                 this.socket.send(datagram);
+                this.count_send = System.currentTimeMillis();
                 System.currentTimeMillis();
                 packet.setTransmit(true);
-                System.out.println("FL: Sent packet: " + packet.getId() + " to " + receiverId + " from " + packet.getSenderId());
             } catch (IOException | InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return;

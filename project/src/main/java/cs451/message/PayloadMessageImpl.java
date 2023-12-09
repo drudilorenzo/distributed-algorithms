@@ -11,7 +11,6 @@ public class PayloadMessageImpl implements Message {
     private final byte senderId;        // id of the sender (max value: 128)
     private final byte[] payload;       // payload of the packet (using a byte array to be able to send every type of data)
     private final byte receiverId;      // id of the receiver (max value: 128)
-    private byte originalSenderId; // id of the original sender (max value: 128)
 
     /**
      * Constructor of {@link PayloadMessageImpl}.
@@ -26,7 +25,6 @@ public class PayloadMessageImpl implements Message {
         this.payload = payload;
         this.senderId =  (byte)((senderId - 1) & 0xFF);
         this.receiverId = (byte)((receiverId - 1) & 0xFF);
-        this.originalSenderId = this.senderId;
     }
 
     @Override
@@ -94,7 +92,7 @@ public class PayloadMessageImpl implements Message {
     public int hashCode() {
         return Integer.toString(this.getId()).hashCode()
                 + Integer.toString(this.getSenderId()).hashCode()
-                + Integer.toString(this.getReceiverId()).hashCode();
+                + Integer.toString(this.getReceiverId()).hashCode() * 31;
     }
 
 }

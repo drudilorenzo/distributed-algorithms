@@ -17,8 +17,9 @@ import java.util.function.BiConsumer;
  */
 public class FIFOBroadcast implements Broadcast {
 
+    private final int myId;
     private final Broadcast urbBroadcast;
-    private final BiConsumer<Integer, Integer> deliverCallback;
+    private final BiConsumer<Integer, Integer> writeCallback;
     private final int[] currentSeq;    // current sequence number for each sender.
     private final IntRanges[] waiting; // messages waiting to be delivered for each sender.
 
@@ -28,10 +29,11 @@ public class FIFOBroadcast implements Broadcast {
      * @param myId:            the id of the current process.
      * @param port:            the port to listen to.
      * @param hosts:           the list of hosts.
-     * @param deliverCallback: consumer of packets called every time a packet is urb-delivered.
+     * @param writeCallback:   consumer of packets called every time a packet can be fifo-delivered.
      */
-    public FIFOBroadcast(final int myId, final int port, List<Host> hosts, final BiConsumer<Integer, Integer> deliverCallback) {
-        this.deliverCallback = deliverCallback;
+    public FIFOBroadcast(final int myId, final int port, List<Host> hosts, final BiConsumer<Integer, Integer> writeCallback) {
+        this.myId = myId;
+        this.writeCallback = writeCallback;
         this.currentSeq = new int[hosts.size()];
         for (var i = 0; i < hosts.size(); i++) {
             this.currentSeq[i] = 1; // waiting for message with id 1 from each sender.
@@ -45,6 +47,7 @@ public class FIFOBroadcast implements Broadcast {
 
     @Override
     public void broadcast(final int msgId, final byte[] payload) {
+        this.writeCallback.accept(msgId, this.myId);
         this.urbBroadcast.broadcast(msgId, payload);
     }
 
@@ -58,7 +61,6 @@ public class FIFOBroadcast implements Broadcast {
         var messagesList = packet.getMessages();
         for (var i = 0; i < messagesList.size(); i++) {
             message = messagesList.get(i);
-
             var sender = message.getSenderId();
             this.waiting[sender - 1].addValue(message.getId());
 
@@ -69,11 +71,12 @@ public class FIFOBroadcast implements Broadcast {
                 // deliver all messages in the range.
                 var end = this.waiting[sender - 1].getFirstRangeEnd();
                 for (var j = start; j <= end; j++) {
-                    this.deliverCallback.accept(j, sender);
+                    this.writeCallback.accept(j, sender);
                     this.currentSeq[sender - 1]++;
                 }
                 this.waiting[sender - 1].removeFirstRange();
             }
         }
+
     }
 }
