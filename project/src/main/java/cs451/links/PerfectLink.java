@@ -7,6 +7,7 @@ import cs451.packet.Packet;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.function.Consumer;
 
 /**
  * Perfect link (or reliable link) abstraction. It is the strongest variant of the link abstractions, and it has
@@ -23,7 +24,7 @@ public class PerfectLink implements Link {
 
     private final StubbornLink sLink;
     private final ConcurrentSkipListSet<Integer>[] delivered;
-    private final BiConsumer<Integer, Integer> deliverCallback;
+    private final Consumer<byte[]> deliverCallback;
 
     /**
      * Constructor of {@link PerfectLink}.
@@ -34,7 +35,7 @@ public class PerfectLink implements Link {
      * @param deliverCallback: consumer of packets called every time a packet is received.
      */
     public PerfectLink(final int myId, final int port,
-        final List<Host> hosts, final BiConsumer<Integer, Integer> deliverCallback) {
+        final List<Host> hosts, final Consumer<byte[]> deliverCallback) {
         // Use a set of delivered messages for each sender host.
         this.delivered = new ConcurrentSkipListSet[hosts.size()];
         for (var i = 0; i < hosts.size(); i++) {
@@ -66,7 +67,7 @@ public class PerfectLink implements Link {
             this.delivered[senderId - 1].add(packetId);
             var messages = packet.getMessages();
             for (int i = 0; i < messages.size(); i++) {
-                this.deliverCallback.accept(messages.get(i).getId(), senderId);
+                this.deliverCallback.accept(messages.get(i).getPayload());
             }
         }
     }

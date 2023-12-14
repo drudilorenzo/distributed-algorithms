@@ -85,14 +85,18 @@ public class PayloadMessageImpl implements Message {
         }
         return (this.getId() == ((Message) obj).getId())
                 && (this.getSenderId() == ((Message) obj).getSenderId())
-                && (this.getReceiverId() == ((Message) obj).getReceiverId());
+                && (this.getReceiverId() == ((Message) obj).getReceiverId())
+                && (this.getLength() == ((Message) obj).getLength())
+                && (this.getPayload().equals(((Message) obj).getPayload()));
     }
 
     @Override
     public int hashCode() {
         return Integer.toString(this.getId()).hashCode()
                 + Integer.toString(this.getSenderId()).hashCode()
-                + Integer.toString(this.getReceiverId()).hashCode();
+                + Integer.toString(this.getReceiverId()).hashCode()
+                + Integer.toString(this.getLength()).hashCode()
+                + this.getPayload().hashCode() * 31;
     }
 
 }

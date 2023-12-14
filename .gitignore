@@ -8,8 +8,10 @@ example/output*
 
 target/
 
+# External validators
 /tools/autostress.py
 /tools/multiple_perfect.sh
 /tools/validate_perfect.js
 /tools/README.md
 /tools/log/
+/tools/validate_lattice.*

@@ -20,12 +20,13 @@ public class PayloadPacketImpl implements Packet {
      * - 4 bytes for the number of messages.
      */
     public static final int PAYLOAD_HEADER_SIZE = 10;
+
     /**
      * Maximum size of a packet in byte.
      * Header + payload.
      * Every packet, in the current implementation, can contain at most 8 messages (8 bytes each).
      */
-    public static final int MAX_PAYLOAD_SIZE = 106;
+    public static final int MAX_PAYLOAD_SIZE = 65507; // max udp packet size
     private static final int MAX_NUM_MESSAGES = 8; // maximum number of messages in a packet
 
     private int length;
@@ -199,8 +200,8 @@ public class PayloadPacketImpl implements Packet {
     public int hashCode() {
         return Integer.hashCode(this.id)
                 + Integer.hashCode(this.senderId)
-                + Integer.hashCode(this.receiverId)
-                + Boolean.hashCode(this.isAck());
+                + Integer.hashCode(this.receiverId) * 31
+                + Boolean.hashCode(this.isAck()) * 31 * 31;
     }
 
 }

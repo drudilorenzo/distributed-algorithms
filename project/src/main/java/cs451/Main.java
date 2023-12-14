@@ -1,12 +1,13 @@
 package cs451;
 
-import cs451.links.PerfectLink;
-import cs451.message.PayloadMessageImpl;
+import cs451.parsers.LatticeParserImpl;
+import cs451.lattice.manager.LatticeManager;
+import cs451.lattice.manager.LatticeManagerImpl;
 
-import java.io.File;
-import java.util.Scanner;
+import java.util.Set;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.stream.Collectors;
 
 /**
  * Lorenzo Drudi
@@ -16,33 +17,37 @@ import java.io.IOException;
 
 /**
  * To execute:
- * ./run.sh --id 1 --hosts ../example/hosts --output ../example/output.txt ../example/configs/perfect-links.config
+ * ./run.sh --id 1 --hosts ../example/hosts --output ../example/output/1.output ../example/configs/lattice-agreement-1.config
  */
 
 public class Main {
 
     // To be able to use them they should be static.
-    private static long timeInit;         // time of the first send
-    private static PerfectLink pLink;     // perfect link abstraction
-    private static FileWriter writer;     // file writer to write to the output file
+    private static LatticeManager latticeManager; // lattice manager
+    private static FileWriter writer;             // file writer to write to the output file
 
-    private static void printDeliver(final int seqNum, final int senderId) {
+    private static void printDeliver(final Set<Integer> decision) {
         try {
-            writer.write("d " + senderId + " " + seqNum + "\n");
+            var s = decision.stream().map(Object::toString).collect(Collectors.joining(" "));
+            writer.write(s + "\n");
         } catch (IOException e) {
+            e.printStackTrace();
+            System.out.println("Delivering: Error writing to output file.\n");
+            System.exit(1);
+        } catch (Exception e) {
+            e.printStackTrace();
             System.out.println("Delivering: Error writing to output file.\n");
             System.exit(1);
         }
     }
 
     private static void handleSignal() {
-        System.out.println("Stop: " + (System.currentTimeMillis() - Main.timeInit) + " ms\n");
 
         //immediately stop network packet processing
         System.out.println("Immediately stopping network packet processing.");
 
         //close all connections
-        Main.pLink.close();
+        Main.latticeManager.close();
 
         // write/flush output file
         System.out.println("Writing output.");
@@ -91,6 +96,12 @@ public class Main {
             System.out.println("Human-readable Port: " + host.getPort());
             System.out.println();
         }
+
+        // If the process is not in the hosts file, exit
+        if (myPort == -1) {
+            System.out.println("Could not find my port.");
+            System.exit(1);
+        }
         System.out.println();
 
         System.out.println("Path to output:");
@@ -103,26 +114,6 @@ public class Main {
 
         System.out.println("Doing some initialization\n");
 
-        // Read config file
-        int numMessages = 0;
-        int receiverId = 0;
-        try (Scanner scanner = new Scanner(new File(parser.config()))) {
-            scanner.useDelimiter(" |\\n");
-            numMessages = scanner.nextInt();
-            System.out.println("Number of messages to broadcast: " + numMessages);
-            receiverId = scanner.nextInt();
-            System.out.println("Receiver Id: " + receiverId + "\n");
-        } catch (IOException e) {
-            System.out.println("Error reading config file.");
-            System.exit(1);
-        }
-
-        // If the process is not in the hosts file, exit
-        if (myPort == -1) {
-            System.out.println("Could not find my port.");
-            System.exit(1);
-        }
-
         try {
             writer = new FileWriter(parser.output());
         } catch (IOException e) {
@@ -130,39 +121,21 @@ public class Main {
             System.exit(1);
         }
 
-        System.out.print("PerfectLink is ready to send messages.\n");
-        System.out.println("Broadcasting and delivering messages...\n");
+        Main.latticeManager = new LatticeManagerImpl(
+                parser.hosts(),
+                parser.myId(),
+                myPort,
+                Main::printDeliver
+        );
 
-        // Set up PerfectLink
-        Main.pLink = new PerfectLink(parser.myId(), myPort, parser.hosts(), Main::printDeliver);
+        // Read config file
+        var latticeParser = new LatticeParserImpl(parser.config());
 
-        // Start the timer
-        Main.timeInit = System.currentTimeMillis();
-        
-        // If the process is not the receiver, broadcast messages
-        if (parser.myId() != receiverId) {
-            // Broadcast messages
-            for (int i = 1; i <= numMessages; i++) {
-                try {
-                    Main.writer.write("b " + i + "\n");
-                } catch (IOException e) {
-                    System.out.println("Broadcasting: Error writing to output file.\n");
-                    System.exit(1);
-                }
+        System.out.println("Doing " + latticeParser.getP() + " proposals\n");
 
-                // Create payload.
-                // Empty since the seq num is in the message id.
-                var payload = new byte[0];
-
-                Main.pLink.send(
-                        new PayloadMessageImpl(
-                                payload,
-                                i,
-                                parser.myId(),
-                                receiverId)
-                );
-            }
-            System.out.println("Broadcast done, waiting for the delivery.\n");
+        Set<Integer> proposal;
+        while ((proposal = latticeParser.getNextProposal()) != null) {
+            latticeManager.propose(proposal);
         }
 
         // After a process finishes broadcasting,

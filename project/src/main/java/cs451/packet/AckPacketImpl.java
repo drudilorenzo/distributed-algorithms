@@ -119,8 +119,8 @@ public class AckPacketImpl implements Packet {
     public int hashCode() {
         return Integer.hashCode(this.id)
                 + Integer.hashCode(this.senderId)
-                + Integer.hashCode(this.receiverId)
-                + Boolean.hashCode(this.isAck());
+                + Integer.hashCode(this.receiverId) * 31
+                + Boolean.hashCode(this.isAck()) * 31 * 31;
     }
 
 }

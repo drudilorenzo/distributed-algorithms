@@ -1,6 +1,7 @@
 package cs451.links;
 
 import cs451.Host;
+import cs451.utils.Utils;
 import cs451.packet.Packet;
 import cs451.message.Message;
 import cs451.packet.PayloadPacketImpl;
@@ -202,17 +203,7 @@ public class StubbornLink implements Link {
     private void sendPackets() {
         Packet packet;
         while (!Thread.currentThread().isInterrupted()) {
-            Runtime runtime = Runtime.getRuntime();
-            // To convert from Bytes to MegaBytes:
-            // 1 MB = 1024 KB and 1 KB = 1024 Bytes.
-            // Therefore, 1 MB = 1024 * 1024 Bytes.
-            long MegaBytes = 1024 * 1024;
-            long totalMemory = runtime.totalMemory() / MegaBytes;       
-            long freeMemory = runtime.freeMemory() / MegaBytes;    
-            long memoryInUse = totalMemory - freeMemory;
-            if (memoryInUse > 50) {
-                System.gc();
-            }
+            Utils.checkGc();
             try {
                 packet = this.packetSendBuffer.take();
                 this.fLink.send(packet);
