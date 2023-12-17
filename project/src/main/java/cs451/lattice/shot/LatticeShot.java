@@ -6,6 +6,15 @@ import java.util.Set;
 
 /**
  * Interface for multi-shot lattice agreement messages.
+ *
+ *  It is characterized by the following properties:
+ *  Let Ii be the proposal of process Pi.
+ *  - Validity: Let a process Pi decide a set Oi. Then Ii ⊆ Oi and Oi ⊆ U Ij (for all j).
+ *  - Consistency: Let a process Pi decide a set Oi, and let a process Pj decide a set Oj.
+ *                 Then Oi and Oj are comparable.
+ *  - Termination: Every correct process eventually decides.
+ *
+ *  Implementation based on the Pseudo-code from the slides of the course Concurrent Computing at EPFL.
  */
 public interface LatticeShot {
 

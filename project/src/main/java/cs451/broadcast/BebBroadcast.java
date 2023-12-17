@@ -42,9 +42,11 @@ public class BebBroadcast implements Broadcast {
 
     @Override
     public void broadcast(final byte[] payload, final int messageId) {
-        for (int i = 1; i <= this.numHosts; i++) {
-            if (i != this.myId) {
-                this.perfectLink.send(new PayloadMessageImpl(payload, messageId, this.myId, i));
+        synchronized (this) {
+            for (int i = 1; i <= this.numHosts; i++) {
+                if (i != this.myId) {
+                    this.perfectLink.send(new PayloadMessageImpl(payload, messageId, this.myId, i));
+                }
             }
         }
     }
@@ -56,7 +58,11 @@ public class BebBroadcast implements Broadcast {
 
     @Override
     public void singleSend(final byte[] payload, final int messageId, final int destination) {
-        this.perfectLink.send(new PayloadMessageImpl(payload, messageId, this.myId, destination));
+        synchronized (this) {
+            if (destination != this.myId) {
+                this.perfectLink.send(new PayloadMessageImpl(payload, messageId, this.myId, destination));
+            }
+        }
     }
 
     @Override

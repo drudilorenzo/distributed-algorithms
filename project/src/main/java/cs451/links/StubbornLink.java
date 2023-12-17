@@ -37,13 +37,10 @@ public class StubbornLink implements Link {
     private final int[] counters;
     private final FairLossLink fLink;
     private final ExecutorService executor;
-    // Packets sent that wait for the ack.
-    // Key: the packet.
-    // Value: true if the packet can be retransmitted, false otherwise.
     private final BlockingQueue<Packet>[] packetsSent;
     private final Consumer<Packet> deliverCallback;
-    private final BlockingQueue<Packet> packetSendBuffer;           // packet to send to the fair loss link
-    private final BlockingQueue<Message>[] messageSendBuffer;       // messages that have to be added to a packet
+    private final BlockingQueue<Packet> packetSendBuffer;     // packet to send to fairloss link
+    private final BlockingQueue<Message>[] messageSendBuffer; // messages that have to be added to a packet
 
     /**
      * Constructor of {@link StubbornLink}.
@@ -63,7 +60,7 @@ public class StubbornLink implements Link {
             if (i + 1 == myId) {
                 continue;
             }
-            this.packetsSent[i] = new LinkedBlockingQueue<>(StubbornLink.SEND_BUFFER_CAPACITY);
+            this.packetsSent[i] = new LinkedBlockingQueue<>();
         }
         this.messageSendBuffer = new LinkedBlockingQueue[hosts.length];
         for (int i = 0; i < hosts.length; i++) {

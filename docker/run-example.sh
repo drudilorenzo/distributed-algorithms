@@ -6,7 +6,7 @@
 # The first parameter is the name of the local directory that contains the
 # source code of the project. You must specify the local absolute path.
 
-docker run \
+docker run --cpus 2 \
 --rm \
 --name da_container \
 -v /home/drudao/Desktop/EPFL/Year_I/DistributedAlgorithms/Project/distributed-algorithms/:/root/da \

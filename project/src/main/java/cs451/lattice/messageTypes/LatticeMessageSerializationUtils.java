@@ -21,27 +21,27 @@ public class LatticeMessageSerializationUtils {
         return buffer.array();
     }
 
-    private static AckMessageImpl deserializeAck(final byte[] bytes, final ByteBuffer buffer) {
+    private static AckMessageImpl deserializeAck(final ByteBuffer buffer) {
         final int shotNumber = buffer.getInt();
         final int proposalNumber = buffer.getInt();
         return new AckMessageImpl(shotNumber, proposalNumber);
     }
 
     private static byte[] serializeNack(final NackMessageImpl nackMessage) {
-        // need to allocate 9 bytes for the message type and the two ints + the size of the set
         final int size = 1 + 3 * INT_SIZE + nackMessage.getProposalNumbers().size() * INT_SIZE;
         final ByteBuffer buffer = ByteBuffer.allocate(size);
         buffer.put((byte) LatticeMessageEnum.NACK.getValue());
         buffer.putInt(nackMessage.getShotNumber());
         buffer.putInt(nackMessage.getProposalNumber());
         buffer.putInt(nackMessage.getProposalNumbers().size());
-        for (final int proposalNumber : nackMessage.getProposalNumbers()) {
-            buffer.putInt(proposalNumber);
+        var it = nackMessage.getProposalNumbers().iterator();
+        while (it.hasNext()) {
+            buffer.putInt(it.next());
         }
         return buffer.array();
     }
 
-    private static NackMessageImpl deserializeNack(final byte[] bytes, final ByteBuffer buffer) {
+    private static NackMessageImpl deserializeNack(final ByteBuffer buffer) {
         final int shotNumber = buffer.getInt();
         final int proposalNumber = buffer.getInt();
         final int size = buffer.getInt();
@@ -66,7 +66,7 @@ public class LatticeMessageSerializationUtils {
         return buffer.array();
     }
 
-    private static ProposalImpl deserializeProposal(final byte[] bytes, final ByteBuffer buffer) {
+    private static ProposalImpl deserializeProposal(final ByteBuffer buffer) {
         final int shotNumber = buffer.getInt();
         final int proposalNumber = buffer.getInt();
         final int senderId = buffer.getInt();
@@ -84,13 +84,14 @@ public class LatticeMessageSerializationUtils {
         buffer.put((byte) LatticeMessageEnum.DECISION.getValue());
         buffer.putInt(decision.getShotNumber());
         buffer.putInt(decision.getDecision().size());
-        for (final int decisionNumber : decision.getDecision()) {
-            buffer.putInt(decisionNumber);
+        var it = decision.getDecision().iterator();
+        while (it.hasNext()) {
+            buffer.putInt(it.next());
         }
         return buffer.array();
     }
 
-    private static DecisionImpl deserializeDecision(final byte[] bytes, final ByteBuffer buffer) {
+    private static DecisionImpl deserializeDecision(final ByteBuffer buffer) {
         final int shotNumber = buffer.getInt();
         final int size = buffer.getInt();
         final Set<Integer> decision = new HashSet<>();
@@ -130,13 +131,13 @@ public class LatticeMessageSerializationUtils {
         final ByteBuffer buffer = ByteBuffer.wrap(bytes);
         final byte messageType = buffer.get();
         if (messageType == LatticeMessageEnum.ACK.getValue()) {
-            return deserializeAck(bytes, buffer);
+            return deserializeAck(buffer);
         } else if (messageType == LatticeMessageEnum.NACK.getValue()) {
-            return deserializeNack(bytes, buffer);
+            return deserializeNack(buffer);
         } else if (messageType == LatticeMessageEnum.PROPOSAL.getValue()) {
-            return deserializeProposal(bytes, buffer);
+            return deserializeProposal(buffer);
         } else if (messageType == LatticeMessageEnum.DECISION.getValue()) {
-            return deserializeDecision(bytes, buffer);
+            return deserializeDecision(buffer);
         } else {
             throw new IllegalArgumentException("Unknown lattice message type.");
         }

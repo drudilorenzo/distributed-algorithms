@@ -1,33 +1,36 @@
 package cs451.lattice.manager;
 
 import cs451.Host;
+import cs451.utils.Utils;
 import cs451.broadcast.BebBroadcast;
-import cs451.lattice.messageTypes.DecisionImpl;
 import cs451.lattice.shot.LatticeShot;
 import cs451.lattice.shot.LatticeShotImpl;
+import cs451.lattice.messageTypes.DecisionImpl;
 import cs451.lattice.messageTypes.LatticeMessage;
-import cs451.utils.Utils;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Consumer;
 
 /**
  * Implementation of {@link LatticeManager}.
  */
 public class LatticeManagerImpl implements LatticeManager {
 
-    private static final int WINDOW_SIZE = 10; // shots handled at once
+    private static final int WINDOW_SIZE = 5; // shots handled at once
+
+    private AtomicInteger signalCounter = new AtomicInteger(0);
 
     private final int myId;
     private int shotsCounter;
     private final int numHosts;
     private int lastDecidedShot;
     private final BebBroadcast bebBroadcast;
-    private final PriorityQueue<DecisionImpl> decisionQueue;
-    private final Consumer<Set<Integer>> deliverCallback;
     private final Map<Integer, LatticeShot> currentShots;
+    private final Consumer<Set<Integer>> deliverCallback;
+    private final PriorityQueue<DecisionImpl> decisionQueue;
 
     // need to use a lock to protect access to shared resources (decisionQueue, currentShots)
     private final ReentrantLock lock;
@@ -58,10 +61,13 @@ public class LatticeManagerImpl implements LatticeManager {
         this.lock.lock();
         LatticeShot shot;
         try {
-            while (this.shotsCounter - this.lastDecidedShot > WINDOW_SIZE) {
+            if (this.shotsCounter > WINDOW_SIZE) {
                 // if the window is full, wait until a shot is decided (decision signal)
                 try {
-                    this.handleMore.await();
+                    // use a counter to not miss signals
+                    if (this.signalCounter.getAndDecrement() == 0) {
+                        this.handleMore.await();
+                    }
                 } catch (final InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
@@ -85,7 +91,11 @@ public class LatticeManagerImpl implements LatticeManager {
 
     @Override
     public void singleSend(final byte[] payload, final int messageId, final int destination) {
-        this.bebBroadcast.singleSend(payload, messageId, destination);
+        try {
+            this.bebBroadcast.singleSend(payload, messageId, destination);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     @Override
@@ -102,6 +112,7 @@ public class LatticeManagerImpl implements LatticeManager {
                 doSignal = true;
             }
             if (doSignal) {
+                this.signalCounter.incrementAndGet();
                 this.handleMore.signal();
             }
         } finally {
@@ -121,6 +132,9 @@ public class LatticeManagerImpl implements LatticeManager {
             var shotNumber = message.getShotNumber();
             shot = this.currentShots.get(shotNumber);
             if (shot == null) {
+                if (shotNumber < this.shotsCounter) {
+                    return;
+                }
                 shot = new LatticeShotImpl(this.myId, shotNumber, this.numHosts, this);
                 this.currentShots.put(shotNumber, shot);
             }
@@ -137,11 +151,8 @@ public class LatticeManagerImpl implements LatticeManager {
             } finally {
                 this.lock.unlock();
             }
-
-            Utils.checkGc();
-
+            Utils.checkGc(); // given the strict requirements, trigger gc manually if it is needed
         }
-
     }
 
 }

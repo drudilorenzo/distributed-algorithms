@@ -19,6 +19,8 @@ public interface Broadcast {
 
     /**
      * Send a message to a single destination.
+     * To avoid the usage of multiple perfect links references,
+     * beb exposes also a single send method.
      *
      * @param payload:     the payload of the message.
      * @param messageId:   the id of the message.

@@ -31,18 +31,12 @@ public class Main {
             var s = decision.stream().map(Object::toString).collect(Collectors.joining(" "));
             writer.write(s + "\n");
         } catch (IOException e) {
-            e.printStackTrace();
-            System.out.println("Delivering: Error writing to output file.\n");
-            System.exit(1);
-        } catch (Exception e) {
-            e.printStackTrace();
             System.out.println("Delivering: Error writing to output file.\n");
             System.exit(1);
         }
     }
 
     private static void handleSignal() {
-
         //immediately stop network packet processing
         System.out.println("Immediately stopping network packet processing.");
 

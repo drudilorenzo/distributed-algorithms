@@ -19,15 +19,15 @@ public class LatticeShotImpl implements LatticeShot {
     private final int numHosts;
     private int proposalNumber;
     private final int shotNumber;
+    private final int[] lastProposal;     // the last proposal number received from each host
+    private Set<Integer> acceptedValues;  // the set of accepted values
+    private Set<Integer> currentProposal; // the current proposal
     private final LatticeManager manager;
-    private Set<Integer> currentProposal;
-    private Set<Integer> acceptedValues;
-    private final int[] lastProposal;
 
     /**
      * Constructor of {@link LatticeShotImpl}.
      *
-     * @param myId:        the id of the current host.
+     * @param myId:       the id of the current host.
      * @param shotNumber: the shot number of the lattice instance.
      * @param numHosts:   the number of hosts in the system.
      * @param manager:    the {@link LatticeManager} to use.
@@ -38,11 +38,11 @@ public class LatticeShotImpl implements LatticeShot {
         this.ackCount = 0;
         this.nackCount = 0;
         this.active = false;
+        this.manager = manager;
         this.decisionCount = 0;
-        this.shotNumber = shotNumber;
         this.proposalNumber = 0;
         this.numHosts = numHosts;
-        this.manager = manager;
+        this.shotNumber = shotNumber;
         this.lastProposal = new int[numHosts];
         this.acceptedValues = new HashSet<>();
         this.currentProposal = new HashSet<>();
@@ -50,6 +50,8 @@ public class LatticeShotImpl implements LatticeShot {
 
     @Override
     public void receive(final LatticeMessage message) {
+        // synchronize on the instance to avoid concurrent access to the instance variables
+        // handling one message at a time
         synchronized (this) {
             if (message instanceof AckMessageImpl) {
                 this.handleLatticeAck((AckMessageImpl) message);
@@ -67,17 +69,20 @@ public class LatticeShotImpl implements LatticeShot {
 
     @Override
     public void propose(final Set<Integer> proposal) {
+        // handling one proposal at a time
         synchronized (this) {
+            this.ackCount = 0;
             this.active = true;
+            this.nackCount = 0;
             this.proposalNumber++;
-            this.currentProposal.addAll(proposal);
-            this.currentProposal.addAll(this.acceptedValues);
+            this.currentProposal = proposal;
             this.sendProposal(proposal);
         }
     }
 
     @Override
     public boolean canDie() {
+        // can die if the instance is not active and all decisions have been received
         synchronized (this) {
             return !this.active && this.decisionCount >= this.numHosts;
         }
@@ -143,7 +148,7 @@ public class LatticeShotImpl implements LatticeShot {
     }
 
     private void sendProposal(final Set<Integer> proposal) {
-        Set<Integer> toSend = Set.copyOf(proposal);
+        Set<Integer> toSend = Set.copyOf(proposal); // defensive copy
         var message = new ProposalImpl(
                 this.shotNumber,
                 this.proposalNumber,
@@ -153,9 +158,10 @@ public class LatticeShotImpl implements LatticeShot {
         var payload = LatticeMessageSerializationUtils.serializeLatticeMessage(message);
 
         this.acceptedValues.addAll(proposal);
-
+        // Automatically receive its own proposal
         if (proposal.containsAll(this.acceptedValues)) {
             this.ackCount++;
+            this.acceptedValues = proposal;
         } else {
             this.nackCount++;
             this.currentProposal.addAll(this.acceptedValues);

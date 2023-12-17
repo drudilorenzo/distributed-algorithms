@@ -17,6 +17,7 @@ from collections import defaultdict, OrderedDict
 
 PROCESSES_BASE_IP = 11000
 
+term_arr = []
 
 def positive_int(value):
     ivalue = int(value)
@@ -199,6 +200,7 @@ class StressTest:
 
                     if op == ProcessState.TERMINATED:
                         reserved = self.terminatedProcs.reserve()
+                        term_arr.append(proc)
                         if reserved:
                             selectProc.remove(proc)
                         else:
@@ -380,7 +382,7 @@ def main(parser_results, testConfig):
         st.continueStoppedProcesses()
 
         #input("Press `Enter` when all processes have finished processing messages.")
-        time.sleep(60)
+        time.sleep(30)
 
         unterminated = st.remainingUnterminatedProcesses()
         if unterminated is not None:
@@ -412,7 +414,8 @@ def main(parser_results, testConfig):
         if procs is not None:
             for _, p in procs:
                 p.kill()
-
+        term_arr.sort()
+        print(term_arr)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -491,12 +494,12 @@ if __name__ == "__main__":
     results = parser.parse_args()
 
     testConfig = {
-        "concurrency": 0,  # How many threads are interferring with the running processes
-        "attempts": 0,  # How many interferring attempts each threads does
+        "concurrency": 8,  # How many threads are interferring with the running processes
+        "attempts": 3,  # How many interferring attempts each threads does
         "attemptsDistribution": {  # Probability with which an interferring thread will
-            "STOP": 0.48,  # select an interferring action (make sure they add up to 1)
-            "CONT": 0.48,
-            "TERM": 0.04,
+            "STOP": 0.45,  # select an interferring action (make sure they add up to 1)
+            "CONT": 0.45,
+            "TERM": 0.10,
         },
     }
 
