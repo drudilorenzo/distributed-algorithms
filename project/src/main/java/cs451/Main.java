@@ -41,7 +41,11 @@ public class Main {
         System.out.println("Immediately stopping network packet processing.");
 
         //close all connections
-        Main.latticeManager.close();
+        try {
+            Main.latticeManager.close();
+        } catch (Exception e) {
+            // ignore exceptions thrown when sigterm/sigint is received
+        }
 
         // write/flush output file
         System.out.println("Writing output.");
@@ -51,6 +55,8 @@ public class Main {
             Main.writer.close();
         } catch (IOException e) {
             System.out.println("Error closing output file");
+        } catch (Exception e)  {
+            // ignore exceptions thrown when sigterm/sigint is received
         }
     }
 

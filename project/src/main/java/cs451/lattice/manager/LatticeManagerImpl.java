@@ -93,8 +93,8 @@ public class LatticeManagerImpl implements LatticeManager {
     public void singleSend(final byte[] payload, final int messageId, final int destination) {
         try {
             this.bebBroadcast.singleSend(payload, messageId, destination);
-        } catch (Exception e) {
-            e.printStackTrace();
+        } catch (NullPointerException e) {
+            // ignore the exception thrown when sigterm/sigint is called
         }
     }
 
